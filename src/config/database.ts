@@ -10,10 +10,15 @@ export const connectDB = async (): Promise<void> => {
       socketTimeoutMS: 45000,
     });
 
-    logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
+    // Show database name instead of host for better clarity
+    const dbName = conn.connection.name;
+    const isAtlas = MONGODB_URI.includes('mongodb+srv') || MONGODB_URI.includes('mongodb.net');
+    const connectionType = isAtlas ? 'MongoDB Atlas' : 'Local MongoDB';
+
+    logger.info(`✅ ${connectionType} Connected: ${dbName}`);
 
     mongoose.connection.on('error', (err) => {
-      logger.error('MongoDB connection error:', err);
+      logger.error('MongoDB connection error:', { message: err.message, stack: err.stack });
     });
 
     mongoose.connection.on('disconnected', () => {
@@ -24,7 +29,12 @@ export const connectDB = async (): Promise<void> => {
       logger.info('MongoDB reconnected');
     });
   } catch (error) {
-    logger.error('MongoDB connection failed:', error);
+    logger.error(
+      'MongoDB connection failed:',
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { error: String(error) }
+    );
     process.exit(1);
   }
 };
@@ -34,7 +44,12 @@ export const disconnectDB = async (): Promise<void> => {
     await mongoose.connection.close();
     logger.info('MongoDB connection closed');
   } catch (error) {
-    logger.error('Error closing MongoDB connection:', error);
+    logger.error(
+      'Error closing MongoDB connection:',
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { error: String(error) }
+    );
     throw error;
   }
 };
