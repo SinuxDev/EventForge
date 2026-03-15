@@ -1,6 +1,6 @@
-# EventForge Backend API
+# EventForge — Backend API
 
-Production-ready REST API for the EventForge knowledge-sharing event platform, built with Express.js, TypeScript, and MongoDB following Clean Architecture and SOLID principles.
+REST API for EventForge, a modern knowledge-sharing event platform. Built with Express.js, TypeScript, and MongoDB following Clean Architecture and SOLID principles.
 
 ## Tech Stack
 
@@ -90,13 +90,75 @@ The server starts on `http://localhost:5000`.
 GET /health
 ```
 
-### File Upload (v1)
+### Authentication (planned)
 
 ```
-POST   /api/v1/upload/single    — Upload a single file
-POST   /api/v1/upload/multiple  — Upload up to 10 files
-DELETE /api/v1/upload/delete    — Delete a file by URL
-GET    /api/v1/upload/metadata  — Get file metadata
+POST   /api/v1/auth/register         — Register a new user
+POST   /api/v1/auth/login            — Login and receive JWT tokens
+POST   /api/v1/auth/refresh          — Refresh access token
+POST   /api/v1/auth/forgot-password  — Request password reset email
+POST   /api/v1/auth/reset-password   — Reset password via token
+GET    /api/v1/auth/me               — Get current user profile
+```
+
+### Events (planned)
+
+```
+GET    /api/v1/events                — List/search/filter events
+GET    /api/v1/events/:id            — Get single event detail
+POST   /api/v1/events                — Create event (Organizer)
+PUT    /api/v1/events/:id            — Update event (Organizer, owner)
+DELETE /api/v1/events/:id            — Delete event (Organizer, owner)
+GET    /api/v1/events/:id/attendees  — Get guest list (Organizer, owner)
+```
+
+### RSVP & Ticketing (planned)
+
+```
+POST   /api/v1/events/:id/rsvp       — Submit RSVP (Attendee)
+GET    /api/v1/rsvps/my              — Get my RSVPs (Attendee)
+DELETE /api/v1/rsvps/:id             — Cancel RSVP (Attendee)
+GET    /api/v1/rsvps/:id/ticket      — Download QR ticket (Attendee)
+```
+
+### QR Check-in (planned)
+
+```
+POST   /api/v1/events/:id/check-in   — Validate QR and check in (Organizer)
+GET    /api/v1/events/:id/attendance — Real-time attendance status (Organizer)
+```
+
+### Organizer Dashboard (planned)
+
+```
+GET    /api/v1/organizer/dashboard                              — Event overview with RSVP stats
+GET    /api/v1/organizer/events/:id/analytics                   — Event analytics
+GET    /api/v1/organizer/events/:id/waitlist                    — Waitlist for event
+POST   /api/v1/organizer/events/:id/waitlist/:rsvpId/approve    — Manually approve waitlist entry
+POST   /api/v1/organizer/events/:id/announce                    — Send email to all RSVPs
+GET    /api/v1/organizer/events/:id/export                      — Export attendance CSV
+```
+
+### Admin Panel (planned)
+
+```
+GET    /api/v1/admin/analytics             — Platform-wide analytics
+GET    /api/v1/admin/users                 — List/search users
+PATCH  /api/v1/admin/users/:id/suspend     — Suspend or unsuspend user
+GET    /api/v1/admin/categories            — List categories
+POST   /api/v1/admin/categories            — Create category
+PUT    /api/v1/admin/categories/:id        — Update category
+DELETE /api/v1/admin/categories/:id        — Delete category
+GET    /api/v1/admin/reports/export        — Export platform report CSV
+```
+
+### File Upload
+
+```
+POST   /api/v1/upload/single     — Upload a single file
+POST   /api/v1/upload/multiple   — Upload up to 10 files
+DELETE /api/v1/upload/delete     — Delete a file by URL
+GET    /api/v1/upload/metadata   — Get file metadata
 ```
 
 ## Key Environment Variables
