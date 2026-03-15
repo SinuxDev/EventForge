@@ -11,7 +11,8 @@ export interface UploadedFileInfo {
 }
 
 export const processUploadedFile = (file: Express.Multer.File): UploadedFileInfo => {
-  const fileUrl = (file as any).location || `/uploads/${file.filename}`;
+  const fileUrl =
+    (file as Express.Multer.File & { location?: string }).location || `/uploads/${file.filename}`;
 
   return {
     filename: file.filename,

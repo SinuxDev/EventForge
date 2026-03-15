@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
-import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  HeadObjectCommandOutput,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { s3, s3Config } from '../config/aws.config';
 import { uploadConfig } from '../config/storage.config';
 import { logger } from '../utils/logger';
@@ -84,7 +89,9 @@ class FileService {
     }
   }
 
-  async getFileMetadata(fileUrl: string): Promise<any> {
+  async getFileMetadata(
+    fileUrl: string
+  ): Promise<HeadObjectCommandOutput | { ContentLength: number; LastModified: Date }> {
     if (uploadConfig.isProduction) {
       const key = this.extractS3KeyFromUrl(fileUrl);
 

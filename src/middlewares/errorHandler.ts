@@ -41,7 +41,7 @@ export const errorHandler = (
     return;
   }
 
-  if (err.name === 'MongoServerError' && (err as any).code === 11000) {
+  if (err.name === 'MongoServerError' && (err as Error & { code?: number }).code === 11000) {
     res.status(409).json({
       status: 'error',
       message: 'Duplicate field value entered',

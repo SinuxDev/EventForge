@@ -52,7 +52,7 @@ export class BaseRepository<T extends Document> implements IBaseRepository<T> {
     filter: FilterQuery<T> = {},
     page: number = 1,
     limit: number = 10,
-    sort: any = { createdAt: -1 }
+    sort: Record<string, 1 | -1> = { createdAt: -1 }
   ) {
     const skip = (page - 1) * limit;
 
@@ -74,8 +74,8 @@ export class BaseRepository<T extends Document> implements IBaseRepository<T> {
     };
   }
 
-  async bulkCreate(data: Partial<T>[]): Promise<any[]> {
-    return (await this.model.insertMany(data)) as any;
+  async bulkCreate(data: Partial<T>[]): Promise<T[]> {
+    return (await this.model.insertMany(data)) as unknown as T[];
   }
 
   async bulkUpdate(updates: Array<{ filter: FilterQuery<T>; update: UpdateQuery<T> }>) {
@@ -84,7 +84,7 @@ export class BaseRepository<T extends Document> implements IBaseRepository<T> {
         filter: item.filter,
         update: item.update,
       },
-    })) as any;
+    })) as Parameters<typeof this.model.bulkWrite>[0];
 
     return await this.model.bulkWrite(bulkOps);
   }

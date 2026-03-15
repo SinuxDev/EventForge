@@ -3,6 +3,7 @@ import multerS3 from 'multer-s3';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { S3Client } from '@aws-sdk/client-s3';
 import { s3, s3Config } from './aws.config';
 import { AppError } from '../utils/AppError';
 
@@ -37,7 +38,7 @@ const mimeTypePresets = {
 };
 
 const createFileFilter = (options: UploadOptions = {}) => {
-  return (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  return (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     if (options.fileTypes === 'all') {
       cb(null, true);
       return;
@@ -76,7 +77,7 @@ const createLocalStorage = (folder: string = 'uploads') => {
 
 const createS3Storage = (folder: string = 'uploads') => {
   return multerS3({
-    s3: s3 as any,
+    s3: s3 as S3Client,
     bucket: s3Config.bucket,
     acl: s3Config.acl,
     metadata: (req, file, cb) => {
