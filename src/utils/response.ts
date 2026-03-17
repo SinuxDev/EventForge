@@ -4,25 +4,22 @@ import { Response } from 'express';
 type ResponseData = object | string | number | boolean | null;
 
 interface SuccessResponse {
-  status: 'success';
-  message?: string;
-  data?: ResponseData;
-  meta?: ResponseData;
+  success: boolean;
+  message: string;
+  data: ResponseData;
 }
 
 export class ApiResponse {
   static success(
     res: Response,
-    data?: ResponseData,
-    message?: string,
-    statusCode: number = 200,
-    meta?: ResponseData
+    data: ResponseData = null,
+    message: string = 'Request completed successfully',
+    statusCode: number = 200
   ): Response {
     const response: SuccessResponse = {
-      status: 'success',
-      ...(message && { message }),
-      ...(data !== undefined && { data }),
-      ...(meta !== undefined && { meta }),
+      success: true,
+      message,
+      data,
     };
 
     return res.status(statusCode).json(response);
@@ -30,13 +27,17 @@ export class ApiResponse {
 
   static created(
     res: Response,
-    data?: ResponseData,
+    data: ResponseData = null,
     message: string = 'Resource created successfully'
   ): Response {
     return this.success(res, data, message, 201);
   }
 
   static noContent(res: Response): Response {
-    return res.status(204).send();
+    return res.status(204).json({
+      success: true,
+      message: 'No content',
+      data: null,
+    });
   }
 }

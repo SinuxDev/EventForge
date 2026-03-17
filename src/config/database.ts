@@ -1,18 +1,18 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sinux-boilerplate';
-
 export const connectDB = async (): Promise<void> => {
+  const mongodbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/sinux-boilerplate';
+
   try {
-    const conn = await mongoose.connect(MONGODB_URI, {
+    const conn = await mongoose.connect(mongodbUri, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
 
     // Show database name instead of host for better clarity
     const dbName = conn.connection.name;
-    const isAtlas = MONGODB_URI.includes('mongodb+srv') || MONGODB_URI.includes('mongodb.net');
+    const isAtlas = mongodbUri.includes('mongodb+srv') || mongodbUri.includes('mongodb.net');
     const connectionType = isAtlas ? 'MongoDB Atlas' : 'Local MongoDB';
 
     logger.info(`✅ ${connectionType} Connected: ${dbName}`);

@@ -47,11 +47,13 @@ app.use('/api', limiter);
 
 app.get('/health', (_req, res: Response) => {
   res.status(200).json({
-    status: 'success',
+    success: true,
     message: 'Server is healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    storage: process.env.NODE_ENV === 'production' ? 'AWS S3' : 'Local',
+    data: {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      storage: process.env.NODE_ENV === 'production' ? 'AWS S3' : 'Local',
+    },
   });
 });
 
