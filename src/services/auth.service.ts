@@ -35,6 +35,11 @@ interface SocialPayload {
   role?: UserRole;
 }
 
+interface UpgradeRolePayload {
+  userId: string;
+  role: Extract<UserRole, 'organizer'>;
+}
+
 class AuthService {
   async registerWithCredentials(payload: RegisterPayload): Promise<AuthResponseData> {
     const existingUser = await userRepository.findByEmail(payload.email);
@@ -91,6 +96,10 @@ class AuthService {
     );
 
     if (existingByProvider) {
+      if (existingByProvider.isSuspended) {
+        throw new AppError('Account is suspended', 403);
+      }
+
       const tokens = this.generateTokens(existingByProvider);
       return {
         user: existingByProvider,
@@ -101,6 +110,10 @@ class AuthService {
     const existingByEmail = await userRepository.findByEmail(payload.email);
 
     if (existingByEmail) {
+      if (existingByEmail.isSuspended) {
+        throw new AppError('Account is suspended', 403);
+      }
+
       existingByEmail.provider = payload.provider;
       existingByEmail.providerId = payload.providerId;
       existingByEmail.name = payload.name || existingByEmail.name;
@@ -128,6 +141,30 @@ class AuthService {
 
     return {
       user: createdUser,
+      ...tokens,
+    };
+  }
+
+  async upgradeRole(payload: UpgradeRolePayload): Promise<AuthResponseData> {
+    const user = await userRepository.findById(payload.userId);
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (user.isSuspended) {
+      throw new AppError('Account is suspended', 403);
+    }
+
+    if (payload.role === 'organizer' && user.role !== 'organizer') {
+      user.role = 'organizer';
+      await user.save();
+    }
+
+    const tokens = this.generateTokens(user);
+
+    return {
+      user,
       ...tokens,
     };
   }

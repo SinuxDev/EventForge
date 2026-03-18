@@ -33,6 +33,23 @@ class AuthController {
 
     ApiResponse.success(res, user, 'Current user retrieved successfully');
   });
+
+  upgradeRole = asyncHandler(async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new AppError('Authorization token is required', 401);
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim();
+    const { userId } = authService.verifyAccessToken(token);
+    const result = await authService.upgradeRole({
+      userId,
+      role: req.body.role,
+    });
+
+    ApiResponse.success(res, result, 'Role upgraded successfully');
+  });
 }
 
 export const authController = new AuthController();

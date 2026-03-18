@@ -25,7 +25,8 @@
     "changelog": "npx conventional-changelog -p angular -i CHANGELOG.md -s",
     "version:patch": "npm version patch -m 'chore: release v%s'",
     "version:minor": "npm version minor -m 'chore: release v%s'",
-    "version:major": "npm version major -m 'chore: release v%s'"
+    "version:major": "npm version major -m 'chore: release v%s'",
+    "seed:admin": "ts-node src/scripts/seed-admin.ts"
   },
   "keywords": [
     "express",

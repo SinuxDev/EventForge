@@ -27,4 +27,12 @@ export const authValidation = {
     body('avatar').optional().isString().withMessage('Avatar must be a string URL'),
     body('role').optional().isIn(['attendee', 'organizer']).withMessage('Role is invalid'),
   ],
+
+  upgradeRole: [
+    body('role')
+      .notEmpty()
+      .withMessage('Role is required')
+      .isIn(['organizer'])
+      .withMessage('Role upgrade is invalid'),
+  ],
 };
