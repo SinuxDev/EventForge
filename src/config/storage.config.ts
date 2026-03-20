@@ -111,6 +111,12 @@ export const uploadImages = createUploadMiddleware({
   folder: 'images',
 });
 
+export const uploadEventCovers = createUploadMiddleware({
+  fileTypes: 'images',
+  maxFileSize: 5 * 1024 * 1024,
+  folder: 'events',
+});
+
 export const uploadDocuments = createUploadMiddleware({
   fileTypes: 'documents',
   maxFileSize: 20 * 1024 * 1024,

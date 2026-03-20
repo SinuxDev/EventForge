@@ -25,6 +25,23 @@ const optionalIsoDateField = (field: string, message: string) =>
     .withMessage(message)
     .toDate();
 
+const isValidPublicUrlOrUploadPath = (value: unknown): boolean => {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return false;
+  }
+
+  if (value.startsWith('/uploads/')) {
+    return true;
+  }
+
+  try {
+    const parsedUrl = new URL(value);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 export const eventValidation = {
   createDraft: [
     body('title')
@@ -50,7 +67,10 @@ export const eventValidation = {
       .isArray({ max: 12 })
       .withMessage('Tags must be an array with up to 12 items'),
     body('tags.*').optional().trim().isLength({ min: 1, max: 40 }),
-    body('coverImage').optional().isURL().withMessage('coverImage must be a valid URL'),
+    body('coverImage')
+      .optional()
+      .custom((value) => isValidPublicUrlOrUploadPath(value))
+      .withMessage('coverImage must be a valid URL or upload path'),
     body('attendanceMode')
       .isIn(['in_person', 'online', 'hybrid'])
       .withMessage('attendanceMode is invalid'),
@@ -119,7 +139,10 @@ export const eventValidation = {
     body('customCategory').optional().trim().isLength({ min: 2, max: 60 }),
     body('tags').optional().isArray({ max: 12 }),
     body('tags.*').optional().trim().isLength({ min: 1, max: 40 }),
-    body('coverImage').optional().isURL(),
+    body('coverImage')
+      .optional()
+      .custom((value) => isValidPublicUrlOrUploadPath(value))
+      .withMessage('coverImage must be a valid URL or upload path'),
     body('attendanceMode').optional().isIn(['in_person', 'online', 'hybrid']),
     body('venueName').optional().trim().isLength({ min: 2, max: 120 }),
     body('addressLine1').optional().trim().isLength({ min: 2, max: 160 }),

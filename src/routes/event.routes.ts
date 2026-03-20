@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { uploadEventCovers } from '../config/storage.config';
 import { eventController } from '../controllers/event.controller';
 import { authenticate, requireRole } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validateRequest';
@@ -7,6 +8,8 @@ import { eventValidation } from '../validations/event.validation';
 const router = Router();
 
 router.use(authenticate, requireRole('organizer', 'admin'));
+
+router.post('/upload-cover', uploadEventCovers.single('coverImage'), eventController.uploadCover);
 
 router.post('/', validateRequest(eventValidation.createDraft), eventController.createDraft);
 router.patch('/:id', validateRequest(eventValidation.updateEvent), eventController.updateEvent);

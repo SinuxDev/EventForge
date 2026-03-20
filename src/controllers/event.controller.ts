@@ -3,6 +3,8 @@ import { asyncHandler } from '../middlewares/asyncHandler';
 import { eventService } from '../services/event.service';
 import { AppError } from '../utils/AppError';
 import { ApiResponse } from '../utils/response';
+import { processUploadedFile } from '../middlewares/uploadMiddleware';
+import { eventRepository } from '../repositories/event.repository';
 
 class EventController {
   createDraft = asyncHandler(async (req: Request, res: Response) => {
@@ -21,6 +23,16 @@ class EventController {
   updateEvent = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new AppError('Unauthorized', 401);
+    }
+
+    const currentEvent = await eventRepository.findByIdRaw(req.params.id);
+
+    if (!currentEvent) {
+      throw new AppError('Event not found', 404);
+    }
+
+    if (String(currentEvent.organizerId) !== String(req.user._id)) {
+      throw new AppError('Forbidden: not your event', 403);
     }
 
     const event = await eventService.updateEvent({
@@ -67,6 +79,27 @@ class EventController {
     );
 
     ApiResponse.success(res, result, 'Events retrieved successfully');
+  });
+
+  uploadCover = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    if (!req.file) {
+      throw new AppError('No image uploaded', 400);
+    }
+
+    const fileInfo = processUploadedFile(req.file);
+
+    ApiResponse.success(
+      res,
+      {
+        url: fileInfo.url,
+        fileName: fileInfo.filename,
+      },
+      'Event cover uploaded successfully'
+    );
   });
 }
 

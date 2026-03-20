@@ -11,8 +11,21 @@ export interface UploadedFileInfo {
 }
 
 export const processUploadedFile = (file: Express.Multer.File): UploadedFileInfo => {
-  const fileUrl =
-    (file as Express.Multer.File & { location?: string }).location || `/uploads/${file.filename}`;
+  const s3Location = (file as Express.Multer.File & { location?: string }).location;
+
+  let fileUrl = s3Location;
+
+  if (!fileUrl) {
+    const normalizedPath = file.path?.replace(/\\/g, '/');
+    const uploadsIndex = normalizedPath ? normalizedPath.lastIndexOf('/uploads/') : -1;
+
+    if (uploadsIndex !== -1) {
+      const relativePath = normalizedPath.slice(uploadsIndex + '/uploads/'.length);
+      fileUrl = `/uploads/${relativePath}`;
+    } else {
+      fileUrl = `/uploads/${file.filename}`;
+    }
+  }
 
   return {
     filename: file.filename,

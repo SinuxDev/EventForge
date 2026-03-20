@@ -19,7 +19,7 @@ export const errorHandler = (
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
-      data: 'error',
+      data: err.errors && err.errors.length > 0 ? err.errors : 'error',
     });
     return;
   }

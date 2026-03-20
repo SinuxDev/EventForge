@@ -103,8 +103,9 @@ class EventService {
       throw new AppError('Event not found', 404);
     }
 
-    if (existingEvent.status === 'published') {
-      throw new AppError('Published events cannot be modified from this endpoint', 400);
+    const now = new Date();
+    if (existingEvent.endDateTime < now) {
+      throw new AppError('Finished events cannot be edited', 400);
     }
 
     const mergedPayload = {
@@ -140,6 +141,26 @@ class EventService {
     };
 
     this.validateCoreEventRules(mergedPayload, false);
+
+    const nextStartDate = new Date(mergedPayload.startDateTime);
+    const nextEndDate = new Date(mergedPayload.endDateTime);
+
+    if (existingEvent.status === 'published') {
+      this.validatePublishedUpdateRules(existingEvent, nextStartDate, nextEndDate);
+    }
+
+    const hasScheduleChanged =
+      nextStartDate.getTime() !== existingEvent.startDateTime.getTime() ||
+      nextEndDate.getTime() !== existingEvent.endDateTime.getTime();
+
+    if (hasScheduleChanged) {
+      await this.ensureNoScheduleConflict(
+        params.organizerId,
+        nextStartDate,
+        nextEndDate,
+        params.eventId
+      );
+    }
 
     const updatedEvent = await eventRepository.update(params.eventId, {
       $set: this.mapPayloadToDocument(mergedPayload),
@@ -195,6 +216,12 @@ class EventService {
     };
 
     this.validateCoreEventRules(payload, true);
+    await this.ensureNoScheduleConflict(
+      params.organizerId,
+      event.startDateTime,
+      event.endDateTime,
+      params.eventId
+    );
 
     const publishedEvent = await eventRepository.update(params.eventId, {
       $set: {
@@ -389,6 +416,54 @@ class EventService {
       if (!payload.tickets || payload.tickets.length === 0) {
         throw new AppError('At least one ticket is required before publishing', 400);
       }
+    }
+  }
+
+  private validatePublishedUpdateRules(
+    existingEvent: IEvent,
+    nextStartDate: Date,
+    nextEndDate: Date
+  ): void {
+    if (nextStartDate < existingEvent.startDateTime) {
+      throw new AppError('Published event start date can only move forward', 400);
+    }
+
+    if (nextEndDate < existingEvent.endDateTime) {
+      throw new AppError('Published event end date can only move forward', 400);
+    }
+  }
+
+  private async ensureNoScheduleConflict(
+    organizerId: string,
+    startDateTime: Date,
+    endDateTime: Date,
+    excludeEventId?: string
+  ): Promise<void> {
+    const conflictEvent = await eventRepository.findOverlappingEvent({
+      organizerId,
+      startDateTime,
+      endDateTime,
+      excludeEventId,
+    });
+
+    if (
+      conflictEvent &&
+      excludeEventId &&
+      conflictEvent._id &&
+      String(conflictEvent._id) === excludeEventId
+    ) {
+      return;
+    }
+
+    if (conflictEvent) {
+      throw new AppError(`Schedule overlaps with existing event: ${conflictEvent.title}`, 409, [
+        {
+          conflictEventId: String(conflictEvent._id),
+          conflictTitle: conflictEvent.title,
+          conflictStartDateTime: conflictEvent.startDateTime,
+          conflictEndDateTime: conflictEvent.endDateTime,
+        },
+      ]);
     }
   }
 }
