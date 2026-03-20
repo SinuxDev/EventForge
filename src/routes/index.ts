@@ -3,6 +3,7 @@ import uploadRoutes from './upload.routes';
 import authRoutes from './auth.routes';
 import demoRequestRoutes from './demo-request.routes';
 import adminRoutes from './admin.routes';
+import eventRoutes from './event.routes';
 
 const router = Router();
 
@@ -12,5 +13,6 @@ router.use(`/${API_VERSION}/upload`, uploadRoutes);
 router.use(`/${API_VERSION}/auth`, authRoutes);
 router.use(`/${API_VERSION}/demo-requests`, demoRequestRoutes);
 router.use(`/${API_VERSION}/admin`, adminRoutes);
+router.use(`/${API_VERSION}/events`, eventRoutes);
 
 export default router;
