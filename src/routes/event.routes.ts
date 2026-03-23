@@ -7,6 +7,17 @@ import { eventValidation } from '../validations/event.validation';
 
 const router = Router();
 
+router.get(
+  '/public',
+  validateRequest(eventValidation.listPublicEvents),
+  eventController.listPublicEvents
+);
+router.get(
+  '/public/:id',
+  validateRequest(eventValidation.getPublicEvent),
+  eventController.getPublicEvent
+);
+
 router.use(authenticate, requireRole('organizer', 'admin'));
 
 router.post('/upload-cover', uploadEventCovers.single('coverImage'), eventController.uploadCover);

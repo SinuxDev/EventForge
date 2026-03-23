@@ -201,6 +201,25 @@ export const eventValidation = {
 
   publishEvent: [param('id').isMongoId().withMessage('Invalid event id')],
 
+  getPublicEvent: [param('id').isMongoId().withMessage('Invalid event id')],
+
+  listPublicEvents: [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('q').optional().trim().isLength({ min: 1, max: 120 }),
+    query('category').optional().trim().isLength({ min: 2, max: 60 }),
+    query('attendanceMode').optional().isIn(['in_person', 'online', 'hybrid']),
+    query('startDateFrom')
+      .optional()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage('startDateFrom must be an ISO datetime'),
+    query('startDateTo')
+      .optional()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage('startDateTo must be an ISO datetime'),
+    query('sort').optional().isIn(['soonest', 'latest']),
+  ],
+
   getMyEvent: [param('id').isMongoId().withMessage('Invalid event id')],
 
   listMyEvents: [

@@ -53,6 +53,66 @@ class EventRepository extends BaseRepository<IEvent> {
 
     return this.model.findById(new mongoose.Types.ObjectId(eventId)).exec();
   }
+
+  async findPublicById(eventId: string): Promise<IEvent | null> {
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return null;
+    }
+
+    return this.model
+      .findOne({
+        _id: new mongoose.Types.ObjectId(eventId),
+        status: 'published',
+        visibility: 'public',
+      } as FilterQuery<IEvent>)
+      .exec();
+  }
+
+  async findPublicEvents(params: {
+    page: number;
+    limit: number;
+    query?: string;
+    category?: string;
+    attendanceMode?: 'in_person' | 'online' | 'hybrid';
+    startDateFrom?: Date;
+    startDateTo?: Date;
+    sort?: 'soonest' | 'latest';
+  }) {
+    const filter: FilterQuery<IEvent> = {
+      status: 'published',
+      visibility: 'public',
+    };
+
+    if (params.query) {
+      const regex = new RegExp(params.query, 'i');
+      filter.$or = [{ title: regex }, { shortSummary: regex }, { category: regex }];
+    }
+
+    if (params.category) {
+      filter.category = params.category;
+    }
+
+    if (params.attendanceMode) {
+      filter.attendanceMode = params.attendanceMode;
+    }
+
+    if (params.startDateFrom || params.startDateTo) {
+      filter.startDateTime = {} as IEvent['startDateTime'];
+
+      if (params.startDateFrom) {
+        (filter.startDateTime as unknown as { $gte?: Date }).$gte = params.startDateFrom;
+      }
+
+      if (params.startDateTo) {
+        (filter.startDateTime as unknown as { $lte?: Date }).$lte = params.startDateTo;
+      }
+    }
+
+    const sort =
+      params.sort === 'latest' ? { startDateTime: -1 as const } : { startDateTime: 1 as const };
+
+    return this.findWithPagination(filter, params.page, params.limit, sort);
+  }
 }
 
 export const eventRepository = new EventRepository();

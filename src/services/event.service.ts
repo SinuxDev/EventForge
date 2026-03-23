@@ -255,6 +255,43 @@ class EventService {
     return eventRepository.findMine(organizerId, page, limit);
   }
 
+  async getPublicEvent(eventId: string): Promise<IEvent> {
+    this.ensureValidObjectId(eventId, 'Invalid event id');
+
+    const event = await eventRepository.findPublicById(eventId);
+
+    if (!event) {
+      throw new AppError('Event not found', 404);
+    }
+
+    return event;
+  }
+
+  async listPublicEvents(options: {
+    page?: number;
+    limit?: number;
+    query?: string;
+    category?: string;
+    attendanceMode?: 'in_person' | 'online' | 'hybrid';
+    startDateFrom?: string;
+    startDateTo?: string;
+    sort?: 'soonest' | 'latest';
+  }) {
+    const page = options.page && options.page > 0 ? options.page : 1;
+    const limit = options.limit && options.limit > 0 ? options.limit : 20;
+
+    return eventRepository.findPublicEvents({
+      page,
+      limit,
+      query: options.query?.trim() || undefined,
+      category: options.category?.trim().toLowerCase() || undefined,
+      attendanceMode: options.attendanceMode,
+      startDateFrom: options.startDateFrom ? new Date(options.startDateFrom) : undefined,
+      startDateTo: options.startDateTo ? new Date(options.startDateTo) : undefined,
+      sort: options.sort,
+    });
+  }
+
   private ensureValidObjectId(value: string, message: string): void {
     if (!mongoose.Types.ObjectId.isValid(value)) {
       throw new AppError(message, 400);
