@@ -9,6 +9,11 @@ const router = Router();
 router.use(authenticate, requireRole('admin'));
 
 router.get('/users', validateRequest(adminValidation.listUsers), adminController.listUsers);
+router.get(
+  '/audit-logs',
+  validateRequest(adminValidation.listAuditLogs),
+  adminController.listAuditLogs
+);
 router.patch(
   '/users/:id/role',
   validateRequest(adminValidation.updateRole),

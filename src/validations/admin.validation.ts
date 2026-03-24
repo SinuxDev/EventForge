@@ -16,11 +16,26 @@ export const adminValidation = {
       .withMessage('Role is required')
       .isIn(['attendee', 'organizer', 'admin'])
       .withMessage('Role is invalid'),
+    body('reason')
+      .trim()
+      .isLength({ min: 3, max: 300 })
+      .withMessage('Reason must be between 3 and 300 characters'),
   ],
 
   updateSuspension: [
     param('id').isMongoId().withMessage('Invalid user id'),
     body('isSuspended').isBoolean().withMessage('isSuspended must be boolean'),
-    body('reason').optional().trim().isLength({ max: 300 }),
+    body('reason')
+      .trim()
+      .isLength({ min: 3, max: 300 })
+      .withMessage('Reason must be between 3 and 300 characters'),
+  ],
+
+  listAuditLogs: [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('action').optional().isIn(['user.role.updated', 'user.suspension.updated']),
+    query('targetUserId').optional().isMongoId(),
+    query('actorUserId').optional().isMongoId(),
   ],
 };

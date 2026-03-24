@@ -27,6 +27,7 @@ class AdminController {
       actorUserId: String(req.user._id),
       targetUserId: req.params.id,
       role: req.body.role,
+      reason: String(req.body.reason),
     });
 
     ApiResponse.success(res, updatedUser, 'User role updated successfully');
@@ -41,6 +42,7 @@ class AdminController {
       actorUserId: String(req.user._id),
       targetUserId: req.params.id,
       isSuspended: req.body.isSuspended,
+      reason: String(req.body.reason),
     });
 
     ApiResponse.success(
@@ -48,6 +50,21 @@ class AdminController {
       updatedUser,
       req.body.isSuspended ? 'User suspended successfully' : 'User unsuspended successfully'
     );
+  });
+
+  listAuditLogs = asyncHandler(async (req: Request, res: Response) => {
+    const result = await adminService.listAuditLogs({
+      page: req.query.page ? Number(req.query.page) : 1,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+      action:
+        req.query.action === 'user.role.updated' || req.query.action === 'user.suspension.updated'
+          ? req.query.action
+          : undefined,
+      targetUserId: typeof req.query.targetUserId === 'string' ? req.query.targetUserId : undefined,
+      actorUserId: typeof req.query.actorUserId === 'string' ? req.query.actorUserId : undefined,
+    });
+
+    ApiResponse.success(res, result, 'Admin audit logs retrieved successfully');
   });
 }
 

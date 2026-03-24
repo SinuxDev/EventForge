@@ -1,5 +1,7 @@
-import { FilterQuery } from 'mongoose';
+import mongoose, { FilterQuery } from 'mongoose';
 import { IUser, UserRole } from '../models/user.model';
+import { IAdminAuditLog } from '../models/admin-audit-log.model';
+import { adminAuditLogRepository } from '../repositories/admin-audit-log.repository';
 import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../utils/AppError';
 
@@ -15,12 +17,22 @@ interface UpdateRoleParams {
   actorUserId: string;
   targetUserId: string;
   role: UserRole;
+  reason: string;
 }
 
 interface UpdateSuspensionParams {
   actorUserId: string;
   targetUserId: string;
   isSuspended: boolean;
+  reason: string;
+}
+
+interface ListAuditLogsParams {
+  page?: number;
+  limit?: number;
+  action?: IAdminAuditLog['action'];
+  targetUserId?: string;
+  actorUserId?: string;
 }
 
 class AdminService {
@@ -67,8 +79,21 @@ class AdminService {
       }
     }
 
+    const previousRole = targetUser.role;
+
     targetUser.role = params.role;
     await targetUser.save();
+
+    await adminAuditLogRepository.create({
+      actorUserId: new mongoose.Types.ObjectId(params.actorUserId),
+      targetUserId: new mongoose.Types.ObjectId(params.targetUserId),
+      action: 'user.role.updated',
+      reason: params.reason.trim(),
+      metadata: {
+        previousRole,
+        nextRole: params.role,
+      },
+    } as Partial<IAdminAuditLog>);
 
     return targetUser;
   }
@@ -91,10 +116,36 @@ class AdminService {
       }
     }
 
+    const previousSuspendedState = targetUser.isSuspended;
+
     targetUser.isSuspended = params.isSuspended;
     await targetUser.save();
 
+    await adminAuditLogRepository.create({
+      actorUserId: new mongoose.Types.ObjectId(params.actorUserId),
+      targetUserId: new mongoose.Types.ObjectId(params.targetUserId),
+      action: 'user.suspension.updated',
+      reason: params.reason.trim(),
+      metadata: {
+        previousSuspendedState,
+        nextSuspendedState: params.isSuspended,
+      },
+    } as Partial<IAdminAuditLog>);
+
     return targetUser;
+  }
+
+  async listAuditLogs(params: ListAuditLogsParams) {
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 20;
+
+    return adminAuditLogRepository.findWithFilters({
+      page,
+      limit,
+      action: params.action,
+      targetUserId: params.targetUserId,
+      actorUserId: params.actorUserId,
+    });
   }
 }
 
