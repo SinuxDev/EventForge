@@ -1,6 +1,11 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type AdminAuditAction = 'user.role.updated' | 'user.suspension.updated';
+export type AdminAuditAction =
+  | 'user.role.updated'
+  | 'user.suspension.updated'
+  | 'compliance.case.created'
+  | 'compliance.case.status.updated'
+  | 'admin.email.campaign.sent';
 
 export interface IAdminAuditLog extends Document {
   actorUserId: mongoose.Types.ObjectId;
@@ -26,7 +31,13 @@ const adminAuditLogSchema = new Schema<IAdminAuditLog>(
     },
     action: {
       type: String,
-      enum: ['user.role.updated', 'user.suspension.updated'],
+      enum: [
+        'user.role.updated',
+        'user.suspension.updated',
+        'compliance.case.created',
+        'compliance.case.status.updated',
+        'admin.email.campaign.sent',
+      ],
       required: true,
     },
     reason: {

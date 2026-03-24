@@ -57,7 +57,11 @@ class AdminController {
       page: req.query.page ? Number(req.query.page) : 1,
       limit: req.query.limit ? Number(req.query.limit) : 20,
       action:
-        req.query.action === 'user.role.updated' || req.query.action === 'user.suspension.updated'
+        req.query.action === 'user.role.updated' ||
+        req.query.action === 'user.suspension.updated' ||
+        req.query.action === 'compliance.case.created' ||
+        req.query.action === 'compliance.case.status.updated' ||
+        req.query.action === 'admin.email.campaign.sent'
           ? req.query.action
           : undefined,
       targetUserId: typeof req.query.targetUserId === 'string' ? req.query.targetUserId : undefined,

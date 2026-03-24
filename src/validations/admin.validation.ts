@@ -34,7 +34,15 @@ export const adminValidation = {
   listAuditLogs: [
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-    query('action').optional().isIn(['user.role.updated', 'user.suspension.updated']),
+    query('action')
+      .optional()
+      .isIn([
+        'user.role.updated',
+        'user.suspension.updated',
+        'compliance.case.created',
+        'compliance.case.status.updated',
+        'admin.email.campaign.sent',
+      ]),
     query('targetUserId').optional().isMongoId(),
     query('actorUserId').optional().isMongoId(),
   ],
