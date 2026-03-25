@@ -90,66 +90,70 @@ The server starts on `http://localhost:5000`.
 GET /health
 ```
 
-### Authentication (planned)
+### Authentication
 
 ```
-POST   /api/v1/auth/register         — Register a new user
-POST   /api/v1/auth/login            — Login and receive JWT tokens
-POST   /api/v1/auth/refresh          — Refresh access token
-POST   /api/v1/auth/forgot-password  — Request password reset email
-POST   /api/v1/auth/reset-password   — Reset password via token
-GET    /api/v1/auth/me               — Get current user profile
+POST   /api/v1/auth/register       — Register a new user
+POST   /api/v1/auth/login          — Login
+POST   /api/v1/auth/social         — Social login
+GET    /api/v1/auth/me             — Get current user profile
+POST   /api/v1/auth/upgrade-role   — Upgrade user role
 ```
 
-### Events (planned)
+### Demo Requests
 
 ```
-GET    /api/v1/events                — List/search/filter events
-GET    /api/v1/events/:id            — Get single event detail
-POST   /api/v1/events                — Create event (Organizer)
-PUT    /api/v1/events/:id            — Update event (Organizer, owner)
-DELETE /api/v1/events/:id            — Delete event (Organizer, owner)
-GET    /api/v1/events/:id/attendees  — Get guest list (Organizer, owner)
+POST   /api/v1/demo-requests       — Submit a demo request
 ```
 
-### RSVP & Ticketing (planned)
+### Events
+
+Public:
 
 ```
-POST   /api/v1/events/:id/rsvp       — Submit RSVP (Attendee)
-GET    /api/v1/rsvps/my              — Get my RSVPs (Attendee)
-DELETE /api/v1/rsvps/:id             — Cancel RSVP (Attendee)
-GET    /api/v1/rsvps/:id/ticket      — Download QR ticket (Attendee)
+GET    /api/v1/events/public       — List public events
+GET    /api/v1/events/public/:id   — Get single public event
 ```
 
-### QR Check-in (planned)
+Organizer/Admin (authenticated):
 
 ```
-POST   /api/v1/events/:id/check-in   — Validate QR and check in (Organizer)
-GET    /api/v1/events/:id/attendance — Real-time attendance status (Organizer)
+POST   /api/v1/events/upload-cover  — Upload event cover image
+POST   /api/v1/events               — Create event draft
+PATCH  /api/v1/events/:id           — Update event draft
+POST   /api/v1/events/:id/publish   — Publish event
+GET    /api/v1/events/:id           — Get organizer/admin event detail
+GET    /api/v1/events               — List organizer/admin events
 ```
 
-### Organizer Dashboard (planned)
+### Admin
+
+All admin endpoints require admin authentication.
+
+Core admin:
 
 ```
-GET    /api/v1/organizer/dashboard                              — Event overview with RSVP stats
-GET    /api/v1/organizer/events/:id/analytics                   — Event analytics
-GET    /api/v1/organizer/events/:id/waitlist                    — Waitlist for event
-POST   /api/v1/organizer/events/:id/waitlist/:rsvpId/approve    — Manually approve waitlist entry
-POST   /api/v1/organizer/events/:id/announce                    — Send email to all RSVPs
-GET    /api/v1/organizer/events/:id/export                      — Export attendance CSV
+GET    /api/v1/admin/users                   — List/search users
+GET    /api/v1/admin/audit-logs              — List audit logs
+PATCH  /api/v1/admin/users/:id/role          — Update user role
+PATCH  /api/v1/admin/users/:id/suspension    — Suspend/unsuspend user
 ```
 
-### Admin Panel (planned)
+Compliance:
 
 ```
-GET    /api/v1/admin/analytics             — Platform-wide analytics
-GET    /api/v1/admin/users                 — List/search users
-PATCH  /api/v1/admin/users/:id/suspend     — Suspend or unsuspend user
-GET    /api/v1/admin/categories            — List categories
-POST   /api/v1/admin/categories            — Create category
-PUT    /api/v1/admin/categories/:id        — Update category
-DELETE /api/v1/admin/categories/:id        — Delete category
-GET    /api/v1/admin/reports/export        — Export platform report CSV
+GET    /api/v1/admin/compliance/risk-overview        — Compliance risk overview
+GET    /api/v1/admin/compliance/cases                — List compliance cases
+POST   /api/v1/admin/compliance/cases                — Create compliance case
+PATCH  /api/v1/admin/compliance/cases/:id/status     — Update case status
+```
+
+Admin Email:
+
+```
+POST   /api/v1/admin/email/campaigns/send       — Send email campaign
+GET    /api/v1/admin/email/campaigns            — List email campaigns
+GET    /api/v1/admin/email/campaigns/:id/logs   — List campaign delivery logs
 ```
 
 ### File Upload
