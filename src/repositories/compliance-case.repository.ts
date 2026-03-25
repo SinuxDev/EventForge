@@ -93,6 +93,35 @@ class ComplianceCaseRepository extends BaseRepository<IComplianceCase> {
       recentCases,
     };
   }
+
+  async getSeverityDistribution(params: { from: Date; to: Date }) {
+    const rows = await this.model
+      .aggregate<{ _id: IComplianceCase['severity']; count: number }>([
+        {
+          $match: {
+            createdAt: {
+              $gte: params.from,
+              $lte: params.to,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$severity',
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .exec();
+
+    return rows.reduce(
+      (result, row) => {
+        result[row._id] = row.count;
+        return result;
+      },
+      { low: 0, medium: 0, high: 0, critical: 0 } as Record<IComplianceCase['severity'], number>
+    );
+  }
 }
 
 export const complianceCaseRepository = new ComplianceCaseRepository();

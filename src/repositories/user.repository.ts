@@ -22,6 +22,27 @@ class UserRepository extends BaseRepository<IUser> {
   async findOneWithPassword(filter: FilterQuery<IUser>): Promise<IUser | null> {
     return this.model.findOne(filter).select('+password').exec();
   }
+
+  async getRoleDistribution() {
+    const rows = await this.model
+      .aggregate<{ _id: IUser['role']; count: number }>([
+        {
+          $group: {
+            _id: '$role',
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .exec();
+
+    return rows.reduce(
+      (result, row) => {
+        result[row._id] = row.count;
+        return result;
+      },
+      { attendee: 0, organizer: 0, admin: 0 } as Record<IUser['role'], number>
+    );
+  }
 }
 
 export const userRepository = new UserRepository();
