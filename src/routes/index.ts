@@ -7,6 +7,7 @@ import eventRoutes from './event.routes';
 import complianceRoutes from './compliance.routes';
 import adminEmailRoutes from './admin-email.routes';
 import adminOverviewRoutes from './admin-overview.routes';
+import demoRequestAdminRoutes from './demo-request-admin.routes';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use(`/${API_VERSION}/auth`, authRoutes);
 router.use(`/${API_VERSION}/demo-requests`, demoRequestRoutes);
 router.use(`/${API_VERSION}/admin`, adminRoutes);
 router.use(`/${API_VERSION}/admin/overview`, adminOverviewRoutes);
+router.use(`/${API_VERSION}/admin/demo-requests`, demoRequestAdminRoutes);
 router.use(`/${API_VERSION}/admin/compliance`, complianceRoutes);
 router.use(`/${API_VERSION}/admin/email`, adminEmailRoutes);
 router.use(`/${API_VERSION}/events`, eventRoutes);

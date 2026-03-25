@@ -5,7 +5,10 @@ export type AdminAuditAction =
   | 'user.suspension.updated'
   | 'compliance.case.created'
   | 'compliance.case.status.updated'
-  | 'admin.email.campaign.sent';
+  | 'admin.email.campaign.sent'
+  | 'demo.request.assigned'
+  | 'demo.request.status.updated'
+  | 'demo.request.followup.updated';
 
 export interface IAdminAuditLog extends Document {
   actorUserId: mongoose.Types.ObjectId;
@@ -37,6 +40,9 @@ const adminAuditLogSchema = new Schema<IAdminAuditLog>(
         'compliance.case.created',
         'compliance.case.status.updated',
         'admin.email.campaign.sent',
+        'demo.request.assigned',
+        'demo.request.status.updated',
+        'demo.request.followup.updated',
       ],
       required: true,
     },

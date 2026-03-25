@@ -93,7 +93,7 @@ class AdminService {
         previousRole,
         nextRole: params.role,
       },
-    } as Partial<IAdminAuditLog>);
+    });
 
     return targetUser;
   }
@@ -130,7 +130,7 @@ class AdminService {
         previousSuspendedState,
         nextSuspendedState: params.isSuspended,
       },
-    } as Partial<IAdminAuditLog>);
+    });
 
     return targetUser;
   }

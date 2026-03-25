@@ -61,7 +61,10 @@ class AdminController {
         req.query.action === 'user.suspension.updated' ||
         req.query.action === 'compliance.case.created' ||
         req.query.action === 'compliance.case.status.updated' ||
-        req.query.action === 'admin.email.campaign.sent'
+        req.query.action === 'admin.email.campaign.sent' ||
+        req.query.action === 'demo.request.assigned' ||
+        req.query.action === 'demo.request.status.updated' ||
+        req.query.action === 'demo.request.followup.updated'
           ? req.query.action
           : undefined,
       targetUserId: typeof req.query.targetUserId === 'string' ? req.query.targetUserId : undefined,
