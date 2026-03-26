@@ -45,6 +45,7 @@ export const adminValidation = {
         'demo.request.assigned',
         'demo.request.status.updated',
         'demo.request.followup.updated',
+        'demo.request.reply.sent',
       ]),
     query('targetUserId').optional().isMongoId(),
     query('actorUserId').optional().isMongoId(),

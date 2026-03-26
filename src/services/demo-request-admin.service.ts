@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
-import { DemoRequestPriority, DemoRequestStatus } from '../models/demo-request.model';
+import {
+  DemoReplyTemplateKey,
+  DemoRequestPriority,
+  DemoRequestStatus,
+} from '../models/demo-request.model';
 import { adminAuditLogRepository } from '../repositories/admin-audit-log.repository';
 import {
   DemoRequestAnalyticsData,
@@ -7,6 +11,8 @@ import {
 } from '../repositories/demo-request.repository';
 import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../utils/AppError';
+import { renderDemoReplyTemplate } from '../lib/demo-reply-templates';
+import { emailService } from './email.service';
 
 type AnalyticsRange = '7d' | '30d' | '90d';
 
@@ -188,6 +194,77 @@ class DemoRequestAdminService {
       reason: params.reason.trim(),
       metadata: {
         demoRequestId: request._id,
+      },
+    });
+
+    return demoRequestRepository.findByIdWithOwner(String(request._id));
+  }
+
+  async sendReply(params: {
+    actorUserId: string;
+    demoRequestId: string;
+    templateKey: DemoReplyTemplateKey;
+    reason: string;
+    customMessage?: string;
+    scheduleLink?: string;
+  }) {
+    const request = await demoRequestRepository.findById(params.demoRequestId);
+    if (!request) {
+      throw new AppError('Demo request not found', 404);
+    }
+
+    const supportName = process.env.EMAIL_FROM_NAME || 'EventForge Admin';
+    const supportEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'support@example.com';
+    const websiteUrl =
+      process.env.EMAIL_WEBSITE_URL || process.env.CORS_ORIGIN || 'http://localhost:3000';
+
+    const renderedTemplate = renderDemoReplyTemplate({
+      templateKey: params.templateKey,
+      recipientName: request.fullName,
+      supportName,
+      supportEmail,
+      websiteUrl,
+      scheduleLink: params.scheduleLink,
+      customMessage: params.customMessage,
+    });
+
+    await emailService.sendTextEmail({
+      to: request.workEmail,
+      subject: renderedTemplate.subject,
+      text: renderedTemplate.text,
+      html: renderedTemplate.html,
+    });
+
+    const now = new Date();
+
+    request.lastReplySentAt = now;
+    request.lastReplyTemplateKey = params.templateKey;
+    request.replyCount = (request.replyCount || 0) + 1;
+    request.lastContactAt = now;
+
+    if (!request.firstResponseAt) {
+      request.firstResponseAt = now;
+    }
+
+    if (request.status === 'new') {
+      request.status = 'contacted';
+    }
+
+    if (params.templateKey === 'acknowledgement' && !request.acknowledgementSentAt) {
+      request.acknowledgementSentAt = now;
+    }
+
+    await request.save();
+
+    await adminAuditLogRepository.create({
+      actorUserId: new mongoose.Types.ObjectId(params.actorUserId),
+      targetUserId: request.ownerAdminId ?? new mongoose.Types.ObjectId(params.actorUserId),
+      action: 'demo.request.reply.sent',
+      reason: params.reason.trim(),
+      metadata: {
+        demoRequestId: request._id,
+        templateKey: params.templateKey,
+        replyCount: request.replyCount,
       },
     });
 

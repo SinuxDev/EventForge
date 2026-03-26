@@ -13,6 +13,13 @@ const demoStatuses = [
   'nurture',
 ];
 
+const demoReplyTemplates = [
+  'acknowledgement',
+  'qualified_next_steps',
+  'not_a_fit_polite',
+  'reschedule_no_show',
+];
+
 export const demoRequestAdminValidation = {
   list: [
     query('page').optional().isInt({ min: 1 }).toInt(),
@@ -56,6 +63,16 @@ export const demoRequestAdminValidation = {
     body('nextActionAt').optional().isISO8601(),
     body('qualificationNotes').optional().trim().isLength({ max: 1500 }),
     body('priority').optional().isIn(['low', 'medium', 'high']),
+  ],
+  sendReply: [
+    param('id').isMongoId().withMessage('Invalid demo request id'),
+    body('templateKey').isIn(demoReplyTemplates).withMessage('Invalid reply template key'),
+    body('reason')
+      .trim()
+      .isLength({ min: 3, max: 300 })
+      .withMessage('Reason must be between 3 and 300 characters'),
+    body('customMessage').optional().trim().isLength({ max: 1200 }),
+    body('scheduleLink').optional().isURL().withMessage('scheduleLink must be a valid URL'),
   ],
   analytics: [query('range').optional().isIn(['7d', '30d', '90d'])],
 };

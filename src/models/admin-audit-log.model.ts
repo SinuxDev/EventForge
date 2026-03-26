@@ -8,7 +8,8 @@ export type AdminAuditAction =
   | 'admin.email.campaign.sent'
   | 'demo.request.assigned'
   | 'demo.request.status.updated'
-  | 'demo.request.followup.updated';
+  | 'demo.request.followup.updated'
+  | 'demo.request.reply.sent';
 
 export interface IAdminAuditLog extends Document {
   actorUserId: mongoose.Types.ObjectId;
@@ -43,6 +44,7 @@ const adminAuditLogSchema = new Schema<IAdminAuditLog>(
         'demo.request.assigned',
         'demo.request.status.updated',
         'demo.request.followup.updated',
+        'demo.request.reply.sent',
       ],
       required: true,
     },

@@ -13,6 +13,11 @@ export type DemoRequestStatus =
   | 'lost'
   | 'nurture';
 export type DemoRequestPriority = 'low' | 'medium' | 'high';
+export type DemoReplyTemplateKey =
+  | 'acknowledgement'
+  | 'qualified_next_steps'
+  | 'not_a_fit_polite'
+  | 'reschedule_no_show';
 
 export interface IDemoRequest extends Document {
   fullName: string;
@@ -26,6 +31,10 @@ export interface IDemoRequest extends Document {
   priority: DemoRequestPriority;
   ownerAdminId?: mongoose.Types.ObjectId;
   qualificationNotes?: string;
+  acknowledgementSentAt?: Date;
+  lastReplySentAt?: Date;
+  lastReplyTemplateKey?: DemoReplyTemplateKey;
+  replyCount: number;
   firstResponseAt?: Date;
   scheduledAt?: Date;
   lastContactAt?: Date;
@@ -110,6 +119,21 @@ const demoRequestSchema = new Schema<IDemoRequest>(
       type: String,
       trim: true,
       maxlength: [1500, 'Qualification notes cannot exceed 1500 characters'],
+    },
+    acknowledgementSentAt: {
+      type: Date,
+    },
+    lastReplySentAt: {
+      type: Date,
+    },
+    lastReplyTemplateKey: {
+      type: String,
+      enum: ['acknowledgement', 'qualified_next_steps', 'not_a_fit_polite', 'reschedule_no_show'],
+    },
+    replyCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     firstResponseAt: {
       type: Date,

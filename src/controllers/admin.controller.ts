@@ -64,7 +64,8 @@ class AdminController {
         req.query.action === 'admin.email.campaign.sent' ||
         req.query.action === 'demo.request.assigned' ||
         req.query.action === 'demo.request.status.updated' ||
-        req.query.action === 'demo.request.followup.updated'
+        req.query.action === 'demo.request.followup.updated' ||
+        req.query.action === 'demo.request.reply.sent'
           ? req.query.action
           : undefined,
       targetUserId: typeof req.query.targetUserId === 'string' ? req.query.targetUserId : undefined,

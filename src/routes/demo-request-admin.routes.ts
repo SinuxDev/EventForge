@@ -34,5 +34,10 @@ router.patch(
   validateRequest(demoRequestAdminValidation.updateFollowUp),
   demoRequestAdminController.updateFollowUp
 );
+router.post(
+  '/:id/reply',
+  validateRequest(demoRequestAdminValidation.sendReply),
+  demoRequestAdminController.sendReply
+);
 
 export default router;

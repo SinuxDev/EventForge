@@ -87,6 +87,23 @@ class DemoRequestAdminController {
     ApiResponse.success(res, request, 'Demo request follow-up updated successfully');
   });
 
+  sendReply = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const request = await demoRequestAdminService.sendReply({
+      actorUserId: String(req.user._id),
+      demoRequestId: req.params.id,
+      templateKey: req.body.templateKey,
+      reason: String(req.body.reason),
+      customMessage: req.body.customMessage,
+      scheduleLink: req.body.scheduleLink,
+    });
+
+    ApiResponse.success(res, request, 'Demo request reply sent successfully');
+  });
+
   getAnalytics = asyncHandler(async (req: Request, res: Response) => {
     const range = req.query.range === '7d' || req.query.range === '90d' ? req.query.range : '30d';
     const analytics = await demoRequestAdminService.getAnalytics(range);
