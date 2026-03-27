@@ -22,7 +22,7 @@ export interface UploadOptions {
 }
 
 const mimeTypePresets = {
-  images: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+  images: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
   documents: [
     'application/pdf',
     'application/msword',
@@ -34,6 +34,14 @@ const mimeTypePresets = {
   ],
   videos: ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm'],
   audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm'],
+  all: [],
+};
+
+const extensionPresets: Record<NonNullable<UploadOptions['fileTypes']>, string[]> = {
+  images: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+  documents: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'],
+  videos: ['.mp4', '.mpeg', '.mov', '.avi', '.webm'],
+  audio: ['.mp3', '.wav', '.ogg', '.webm'],
   all: [],
 };
 
@@ -50,10 +58,18 @@ const createFileFilter = (options: UploadOptions = {}) => {
         ? mimeTypePresets[options.fileTypes]
         : [...mimeTypePresets.images, ...mimeTypePresets.documents];
 
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const allowedExtensions = options.fileTypes
+      ? extensionPresets[options.fileTypes]
+      : [...extensionPresets.images, ...extensionPresets.documents];
+
+    const isMimeAllowed = allowedMimeTypes.includes(file.mimetype);
+    const isExtensionAllowed = allowedExtensions.includes(extension);
+
+    if (isMimeAllowed && isExtensionAllowed) {
       cb(null, true);
     } else {
-      cb(new AppError(`Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`, 400));
+      cb(new AppError('Invalid file type or extension', 400));
     }
   };
 };

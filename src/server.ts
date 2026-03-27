@@ -5,8 +5,18 @@ import { logger } from './utils/logger';
 
 const PORT = process.env.PORT || 5000;
 
+const validateRequiredEnv = () => {
+  const requiredVars = ['JWT_SECRET', 'JWT_REFRESH_SECRET'];
+  const missingVars = requiredVars.filter((envName) => !process.env[envName]);
+
+  if (missingVars.length > 0 && process.env.NODE_ENV !== 'test') {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+};
+
 const startServer = async () => {
   try {
+    validateRequiredEnv();
     await connectDB();
 
     const server = app.listen(PORT, () => {

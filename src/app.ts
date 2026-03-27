@@ -11,6 +11,15 @@ import routes from './routes';
 
 const app: Application = express();
 
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+const corsOriginConfig = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const allowedOrigins = corsOriginConfig
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: {
@@ -21,7 +30,14 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Origin not allowed by CORS'));
+    },
     credentials: true,
   })
 );

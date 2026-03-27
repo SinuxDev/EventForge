@@ -8,6 +8,13 @@ interface JwtPayload {
 }
 
 export const authenticate = async (req: Request, _res: Response, next: NextFunction) => {
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    next(new AppError('JWT secret is not configured', 500));
+    return;
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,7 +25,7 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
   const token = authHeader.replace('Bearer ', '').trim();
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as JwtPayload;
+    const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
 
     if (!decoded.sub) {
       next(new AppError('Invalid token payload', 401));

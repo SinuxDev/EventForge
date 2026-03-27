@@ -13,8 +13,48 @@ import { logger } from '../utils/logger';
 import { AppError } from '../utils/AppError';
 
 class FileService {
+  private isAllowedManagedUrl(fileUrl: string): boolean {
+    if (fileUrl.startsWith('/uploads/')) {
+      return true;
+    }
+
+    const s3Prefix = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/uploads/`;
+    return Boolean(s3Config.bucket) && fileUrl.startsWith(s3Prefix);
+  }
+
+  private resolveSafeLocalPath(fileUrl: string): string {
+    const decodedUrl = decodeURIComponent(fileUrl);
+
+    if (!decodedUrl.startsWith('/uploads/')) {
+      throw new AppError('Invalid file URL', 400);
+    }
+
+    const relativePath = decodedUrl.slice('/uploads/'.length);
+
+    if (!relativePath || relativePath.includes('..')) {
+      throw new AppError('Invalid file URL', 400);
+    }
+
+    const resolvedPath = path.resolve(uploadConfig.uploadDir, relativePath);
+    const uploadRoot = path.resolve(uploadConfig.uploadDir);
+
+    if (!resolvedPath.startsWith(uploadRoot)) {
+      throw new AppError('Invalid file URL', 400);
+    }
+
+    return resolvedPath;
+  }
+
+  private validateManagedFileUrl(fileUrl: string): void {
+    if (!this.isAllowedManagedUrl(fileUrl)) {
+      throw new AppError('File URL is not managed by this service', 400);
+    }
+  }
+
   async deleteFile(fileUrl: string): Promise<void> {
     try {
+      this.validateManagedFileUrl(fileUrl);
+
       if (uploadConfig.isProduction) {
         await this.deleteFromS3(fileUrl);
       } else {
@@ -39,8 +79,7 @@ class FileService {
   }
 
   private async deleteFromLocal(fileUrl: string): Promise<void> {
-    const filename = path.basename(fileUrl);
-    const filePath = path.join(uploadConfig.uploadDir, filename);
+    const filePath = this.resolveSafeLocalPath(fileUrl);
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -48,8 +87,13 @@ class FileService {
   }
 
   private extractS3KeyFromUrl(url: string): string {
-    const urlParts = url.split('.com/');
-    return urlParts[1] || url;
+    const s3Prefix = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/`;
+
+    if (!url.startsWith(s3Prefix)) {
+      throw new AppError('Invalid S3 file URL', 400);
+    }
+
+    return url.slice(s3Prefix.length);
   }
 
   async optimizeImage(
@@ -92,6 +136,8 @@ class FileService {
   async getFileMetadata(
     fileUrl: string
   ): Promise<HeadObjectCommandOutput | { ContentLength: number; LastModified: Date }> {
+    this.validateManagedFileUrl(fileUrl);
+
     if (uploadConfig.isProduction) {
       const key = this.extractS3KeyFromUrl(fileUrl);
 
@@ -102,8 +148,7 @@ class FileService {
 
       return await s3.send(command);
     } else {
-      const filename = path.basename(fileUrl);
-      const filePath = path.join(uploadConfig.uploadDir, filename);
+      const filePath = this.resolveSafeLocalPath(fileUrl);
 
       if (!fs.existsSync(filePath)) {
         throw new AppError('File not found', 404);

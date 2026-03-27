@@ -21,28 +21,22 @@ class AuthController {
   });
 
   me = asyncHandler(async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AppError('Authorization token is required', 401);
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
-    const { userId } = authService.verifyAccessToken(token);
+    const userId = String(req.user._id);
     const user = await authService.getCurrentUser(userId);
 
     ApiResponse.success(res, user, 'Current user retrieved successfully');
   });
 
   upgradeRole = asyncHandler(async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AppError('Authorization token is required', 401);
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
     }
 
-    const token = authHeader.replace('Bearer ', '').trim();
-    const { userId } = authService.verifyAccessToken(token);
+    const userId = String(req.user._id);
     const result = await authService.upgradeRole({
       userId,
       role: req.body.role,

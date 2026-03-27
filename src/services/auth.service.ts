@@ -184,8 +184,14 @@ class AuthService {
   }
 
   verifyAccessToken(token: string): { userId: string } {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new AppError('JWT secret is not configured', 500);
+    }
+
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as {
+      const decoded = jwt.verify(token, jwtSecret) as {
         sub?: string;
       };
 
