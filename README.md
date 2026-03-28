@@ -69,6 +69,23 @@ npm run dev
 
 The server starts on `http://localhost:5000`.
 
+## API Documentation (Swagger)
+
+Swagger UI and OpenAPI JSON are available for interactive API exploration:
+
+- UI: `GET /api/docs`
+- JSON spec: `GET /api/docs.json`
+
+Environment behavior:
+
+- **development/staging**: docs are enabled for quick testing
+- **production**: docs endpoints require authenticated **admin** Bearer token
+
+You can override endpoints via env vars:
+
+- `SWAGGER_DOCS_PATH` (default: `/api/docs`)
+- `SWAGGER_DOCS_JSON_PATH` (default: `/api/docs.json`)
+
 ## Available Scripts
 
 | Script | Description |

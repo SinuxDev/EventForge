@@ -5,6 +5,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import { setupSwagger } from './config/swagger.config';
 import { errorHandler } from './middlewares/errorHandler';
 import { notFoundHandler } from './middlewares/notFoundHandler';
 import routes from './routes';
@@ -78,6 +79,8 @@ app.get('/health', (_req, res: Response) => {
     },
   });
 });
+
+setupSwagger(app);
 
 app.use('/api', routes);
 
