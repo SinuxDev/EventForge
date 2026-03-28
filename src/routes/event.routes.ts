@@ -4,6 +4,8 @@ import { eventController } from '../controllers/event.controller';
 import { authenticate, requireRole } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validateRequest';
 import { eventValidation } from '../validations/event.validation';
+import { rsvpValidation } from '../validations/rsvp.validation';
+import { rsvpController } from '../controllers/rsvp.controller';
 
 const router = Router();
 
@@ -18,6 +20,14 @@ router.get(
   eventController.getPublicEvent
 );
 
+router.post(
+  '/:id/rsvp',
+  authenticate,
+  requireRole('attendee', 'organizer', 'admin'),
+  validateRequest(rsvpValidation.submitRsvp),
+  rsvpController.submitRsvp
+);
+
 router.use(authenticate, requireRole('organizer', 'admin'));
 
 router.post('/upload-cover', uploadEventCovers.single('coverImage'), eventController.uploadCover);
@@ -30,6 +40,21 @@ router.post(
   eventController.publishEvent
 );
 router.get('/:id', validateRequest(eventValidation.getMyEvent), eventController.getMyEvent);
+router.post(
+  '/:id/check-in',
+  validateRequest(eventValidation.checkInByQr),
+  eventController.checkInByQr
+);
+router.post(
+  '/:id/check-in/undo',
+  validateRequest(eventValidation.undoCheckIn),
+  eventController.undoCheckIn
+);
+router.get(
+  '/:id/attendance',
+  validateRequest(eventValidation.getAttendance),
+  eventController.getAttendance
+);
 router.get('/', validateRequest(eventValidation.listMyEvents), eventController.listMyEvents);
 
 export default router;

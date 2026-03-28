@@ -9,6 +9,7 @@ import adminEmailRoutes from './admin-email.routes';
 import adminOverviewRoutes from './admin-overview.routes';
 import demoRequestAdminRoutes from './demo-request-admin.routes';
 import appealRequestRoutes from './appeal-request.routes';
+import rsvpRoutes from './rsvp.routes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use(`/${API_VERSION}/admin/demo-requests`, demoRequestAdminRoutes);
 router.use(`/${API_VERSION}/admin/compliance`, complianceRoutes);
 router.use(`/${API_VERSION}/admin/email`, adminEmailRoutes);
 router.use(`/${API_VERSION}/events`, eventRoutes);
+router.use(`/${API_VERSION}/rsvps`, rsvpRoutes);
 
 export default router;

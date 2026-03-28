@@ -1,0 +1,207 @@
+import mongoose from 'mongoose';
+import { IEvent } from '../models/event.model';
+import { eventRepository } from '../repositories/event.repository';
+import { rsvpRepository } from '../repositories/rsvp.repository';
+import { ticketRepository } from '../repositories/ticket.repository';
+import { userRepository } from '../repositories/user.repository';
+import { AppError } from '../utils/AppError';
+
+type ActorRole = 'attendee' | 'organizer' | 'admin';
+
+interface CheckInByQrParams {
+  eventId: string;
+  actorUserId: string;
+  actorRole: ActorRole;
+  qrCode: string;
+  source: 'scanner' | 'manual';
+}
+
+interface UndoCheckInParams {
+  eventId: string;
+  actorUserId: string;
+  actorRole: ActorRole;
+  ticketId: string;
+}
+
+interface CheckInResult {
+  eventId: string;
+  ticketId: string;
+  rsvpId: string;
+  attendeeId: string;
+  attendeeName: string;
+  attendeeEmail: string;
+  alreadyCheckedIn: boolean;
+  checkedInAt: Date;
+  source: 'scanner' | 'manual';
+}
+
+interface UndoCheckInResult {
+  eventId: string;
+  ticketId: string;
+  isCheckedIn: boolean;
+}
+
+interface AttendanceResult {
+  eventId: string;
+  registeredCount: number;
+  waitlistedCount: number;
+  checkedInCount: number;
+  attendanceRate: number;
+}
+
+class EventCheckInService {
+  async checkInByQr(params: CheckInByQrParams): Promise<CheckInResult> {
+    const event = await this.ensureEventAccess(
+      params.eventId,
+      params.actorUserId,
+      params.actorRole
+    );
+
+    const ticket = await ticketRepository.findByQrCodeAndEvent(params.eventId, params.qrCode);
+    if (!ticket) {
+      throw new AppError('Ticket not found for this event', 404);
+    }
+
+    const attendee = await userRepository.findById(String(ticket.user));
+    if (!attendee) {
+      throw new AppError('Ticket owner not found', 404);
+    }
+
+    if (ticket.isCheckedIn && ticket.checkedInAt) {
+      return {
+        eventId: String(event._id),
+        ticketId: String(ticket._id),
+        rsvpId: String(ticket.rsvp),
+        attendeeId: String(attendee._id),
+        attendeeName: attendee.name,
+        attendeeEmail: attendee.email,
+        alreadyCheckedIn: true,
+        checkedInAt: ticket.checkedInAt,
+        source: params.source,
+      };
+    }
+
+    const now = new Date();
+    const updated = await ticketRepository.update(String(ticket._id), {
+      $set: {
+        isCheckedIn: true,
+        checkedInAt: now,
+        checkedInBy: new mongoose.Types.ObjectId(params.actorUserId),
+      },
+    });
+
+    if (!updated || !updated.checkedInAt) {
+      throw new AppError('Unable to complete check-in', 500);
+    }
+
+    return {
+      eventId: String(event._id),
+      ticketId: String(updated._id),
+      rsvpId: String(updated.rsvp),
+      attendeeId: String(attendee._id),
+      attendeeName: attendee.name,
+      attendeeEmail: attendee.email,
+      alreadyCheckedIn: false,
+      checkedInAt: updated.checkedInAt,
+      source: params.source,
+    };
+  }
+
+  async undoCheckIn(params: UndoCheckInParams): Promise<UndoCheckInResult> {
+    await this.ensureEventAccess(params.eventId, params.actorUserId, params.actorRole);
+
+    const ticket = await ticketRepository.findByIdAndEvent(params.ticketId, params.eventId);
+    if (!ticket) {
+      throw new AppError('Ticket not found for this event', 404);
+    }
+
+    if (!ticket.isCheckedIn) {
+      return {
+        eventId: params.eventId,
+        ticketId: String(ticket._id),
+        isCheckedIn: false,
+      };
+    }
+
+    const updated = await ticketRepository.update(String(ticket._id), {
+      $set: {
+        isCheckedIn: false,
+      },
+      $unset: {
+        checkedInAt: 1,
+        checkedInBy: 1,
+      },
+    });
+
+    if (!updated) {
+      throw new AppError('Unable to undo check-in', 500);
+    }
+
+    return {
+      eventId: params.eventId,
+      ticketId: String(updated._id),
+      isCheckedIn: false,
+    };
+  }
+
+  async getAttendance(
+    eventId: string,
+    actorUserId: string,
+    actorRole: ActorRole
+  ): Promise<AttendanceResult> {
+    const event = await this.ensureEventAccess(eventId, actorUserId, actorRole);
+
+    const [registeredCount, waitlistedCount, checkedInCount] = await Promise.all([
+      rsvpRepository.countRegisteredByEvent(eventId),
+      rsvpRepository.countWaitlistedByEvent(eventId),
+      ticketRepository.countCheckedInByEvent(eventId),
+    ]);
+
+    const attendanceRate =
+      registeredCount > 0 ? Number(((checkedInCount / registeredCount) * 100).toFixed(2)) : 0;
+
+    return {
+      eventId: String(event._id),
+      registeredCount,
+      waitlistedCount,
+      checkedInCount,
+      attendanceRate,
+    };
+  }
+
+  private async ensureEventAccess(
+    eventId: string,
+    actorUserId: string,
+    actorRole: ActorRole
+  ): Promise<IEvent> {
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      throw new AppError('Invalid event id', 400);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(actorUserId)) {
+      throw new AppError('Invalid actor id', 400);
+    }
+
+    if (actorRole === 'admin') {
+      const event = await eventRepository.findByIdRaw(eventId);
+      if (!event) {
+        throw new AppError('Event not found', 404);
+      }
+
+      return event;
+    }
+
+    const event = await eventRepository.findByIdRaw(eventId);
+    if (!event) {
+      throw new AppError('Event not found', 404);
+    }
+
+    if (String(event.organizerId) !== actorUserId) {
+      throw new AppError('Forbidden: not your event', 403);
+    }
+
+    return event;
+  }
+}
+
+export const eventCheckInService = new EventCheckInService();

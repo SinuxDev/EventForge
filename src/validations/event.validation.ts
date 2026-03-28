@@ -226,4 +226,17 @@ export const eventValidation = {
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   ],
+
+  checkInByQr: [
+    param('id').isMongoId().withMessage('Invalid event id'),
+    body('qrCode').trim().notEmpty().withMessage('qrCode is required'),
+    body('source').isIn(['scanner', 'manual']).withMessage('source must be scanner or manual'),
+  ],
+
+  undoCheckIn: [
+    param('id').isMongoId().withMessage('Invalid event id'),
+    body('ticketId').isMongoId().withMessage('ticketId is required'),
+  ],
+
+  getAttendance: [param('id').isMongoId().withMessage('Invalid event id')],
 };

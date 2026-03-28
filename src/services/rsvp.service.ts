@@ -1,0 +1,399 @@
+import crypto from 'crypto';
+import mongoose from 'mongoose';
+import { IEvent } from '../models/event.model';
+import { IRsvp, IRsvpFormResponse, RsvpStatus } from '../models/rsvp.model';
+import { ITicket } from '../models/ticket.model';
+import { eventRepository } from '../repositories/event.repository';
+import { rsvpRepository } from '../repositories/rsvp.repository';
+import { ticketRepository } from '../repositories/ticket.repository';
+import { userRepository } from '../repositories/user.repository';
+import { AppError } from '../utils/AppError';
+import { renderRsvpEmailTemplate } from '../lib/rsvp-email-templates';
+import { generateQrCodeDataUrl } from '../lib/qr-code';
+import { emailService } from './email.service';
+import { logger } from '../utils/logger';
+
+interface RsvpFormInput {
+  question: string;
+  answer: string;
+}
+
+interface SubmitRsvpParams {
+  eventId: string;
+  userId: string;
+  formResponses?: RsvpFormInput[];
+}
+
+interface SubmitRsvpResult {
+  rsvpId: string;
+  status: RsvpStatus;
+  waitlistPosition: number | null;
+  ticketId: string | null;
+}
+
+interface CancelRsvpResult {
+  rsvpId: string;
+  status: RsvpStatus;
+  promotedRsvpId: string | null;
+}
+
+interface MyTicketResult {
+  rsvpId: string;
+  eventId: string;
+  eventTitle: string;
+  eventStartDateTime: Date;
+  eventTimezone: string;
+  status: RsvpStatus;
+  ticketId: string;
+  qrCode: string;
+  qrCodeImage: string | null;
+}
+
+class RsvpService {
+  async submitRsvp(params: SubmitRsvpParams): Promise<SubmitRsvpResult> {
+    this.ensureValidObjectId(params.eventId, 'Invalid event id');
+    this.ensureValidObjectId(params.userId, 'Invalid user id');
+
+    const event = await eventRepository.findByIdRaw(params.eventId);
+    if (!event) {
+      throw new AppError('Event not found', 404);
+    }
+
+    this.ensureEventAcceptsRsvp(event);
+
+    const existingRsvp = await rsvpRepository.findByEventAndUser(params.eventId, params.userId);
+    if (existingRsvp && existingRsvp.status !== 'cancelled') {
+      const existingTicket = await ticketRepository.findByRsvpId(String(existingRsvp._id));
+      return {
+        rsvpId: String(existingRsvp._id),
+        status: existingRsvp.status,
+        waitlistPosition: existingRsvp.waitlistPosition ?? null,
+        ticketId: existingTicket ? String(existingTicket._id) : null,
+      };
+    }
+
+    const normalizedResponses = this.normalizeFormResponses(params.formResponses);
+    const registeredCount = await rsvpRepository.countRegisteredByEvent(params.eventId);
+    const hasAvailableSeat = registeredCount < event.capacity;
+
+    const status: RsvpStatus = hasAvailableSeat ? 'registered' : 'waitlisted';
+    const waitlistPosition = hasAvailableSeat
+      ? undefined
+      : (await rsvpRepository.countWaitlistedByEvent(params.eventId)) + 1;
+
+    let rsvp: IRsvp;
+    if (existingRsvp && existingRsvp.status === 'cancelled') {
+      const updated = await rsvpRepository.update(String(existingRsvp._id), {
+        $set: {
+          status,
+          formResponses: normalizedResponses,
+          waitlistPosition,
+          cancelledAt: undefined,
+        },
+      });
+
+      if (!updated) {
+        throw new AppError('Unable to update RSVP', 500);
+      }
+
+      rsvp = updated;
+    } else {
+      try {
+        rsvp = await rsvpRepository.create({
+          event: new mongoose.Types.ObjectId(params.eventId),
+          user: new mongoose.Types.ObjectId(params.userId),
+          status,
+          formResponses: normalizedResponses,
+          waitlistPosition,
+        } as Partial<IRsvp>);
+      } catch (error) {
+        const duplicateError =
+          error instanceof Error &&
+          (error as Error & { name?: string }).name === 'MongoServerError' &&
+          (error as Error & { code?: number }).code === 11000;
+
+        if (!duplicateError) {
+          throw error;
+        }
+
+        const raceExistingRsvp = await rsvpRepository.findByEventAndUser(
+          params.eventId,
+          params.userId
+        );
+        if (!raceExistingRsvp) {
+          throw new AppError('Unable to create RSVP', 500);
+        }
+
+        const raceTicket = await ticketRepository.findByRsvpId(String(raceExistingRsvp._id));
+        return {
+          rsvpId: String(raceExistingRsvp._id),
+          status: raceExistingRsvp.status,
+          waitlistPosition: raceExistingRsvp.waitlistPosition ?? null,
+          ticketId: raceTicket ? String(raceTicket._id) : null,
+        };
+      }
+    }
+
+    let ticket: ITicket | null = null;
+    if (status === 'registered') {
+      ticket = await this.ensureTicket(String(rsvp._id), params.eventId, params.userId);
+    }
+
+    await this.sendRsvpStatusEmail({
+      userId: params.userId,
+      event,
+      status,
+      rsvpId: String(rsvp._id),
+      ticketCode: ticket?.qrCode,
+    });
+
+    return {
+      rsvpId: String(rsvp._id),
+      status,
+      waitlistPosition: waitlistPosition ?? null,
+      ticketId: ticket ? String(ticket._id) : null,
+    };
+  }
+
+  async listMyRsvps(userId: string): Promise<IRsvp[]> {
+    this.ensureValidObjectId(userId, 'Invalid user id');
+    return rsvpRepository.listByUser(userId);
+  }
+
+  async cancelRsvp(rsvpId: string, userId: string): Promise<CancelRsvpResult> {
+    this.ensureValidObjectId(rsvpId, 'Invalid RSVP id');
+    this.ensureValidObjectId(userId, 'Invalid user id');
+
+    const existing = await rsvpRepository.findByIdOwnedByUser(rsvpId, userId);
+    if (!existing) {
+      throw new AppError('RSVP not found', 404);
+    }
+
+    if (existing.status === 'cancelled') {
+      return {
+        rsvpId: String(existing._id),
+        status: existing.status,
+        promotedRsvpId: null,
+      };
+    }
+
+    const previousStatus = existing.status;
+    const updated = await rsvpRepository.update(rsvpId, {
+      $set: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        waitlistPosition: undefined,
+      },
+    });
+
+    if (!updated) {
+      throw new AppError('Unable to cancel RSVP', 500);
+    }
+
+    const event = await eventRepository.findByIdRaw(String(existing.event));
+    if (event) {
+      await this.sendRsvpStatusEmail({
+        userId,
+        event,
+        status: 'cancelled',
+        rsvpId: String(existing._id),
+      });
+    }
+
+    let promotedRsvpId: string | null = null;
+    if (previousStatus === 'registered') {
+      const promoted = await this.promoteNextWaitlisted(String(existing.event));
+      promotedRsvpId = promoted ? String(promoted._id) : null;
+    }
+
+    return {
+      rsvpId: String(updated._id),
+      status: updated.status,
+      promotedRsvpId,
+    };
+  }
+
+  async getMyTicket(rsvpId: string, userId: string): Promise<MyTicketResult> {
+    this.ensureValidObjectId(rsvpId, 'Invalid RSVP id');
+    this.ensureValidObjectId(userId, 'Invalid user id');
+
+    const rsvp = await rsvpRepository.findByIdOwnedByUser(rsvpId, userId);
+    if (!rsvp) {
+      throw new AppError('RSVP not found', 404);
+    }
+
+    if (rsvp.status !== 'registered') {
+      throw new AppError('Ticket is only available for registered RSVPs', 400);
+    }
+
+    const event = await eventRepository.findByIdRaw(String(rsvp.event));
+    if (!event) {
+      throw new AppError('Event not found', 404);
+    }
+
+    const ticket = await this.ensureTicket(String(rsvp._id), String(rsvp.event), userId);
+
+    if (!ticket.qrCodeImage) {
+      const generatedQrCodeImage = await generateQrCodeDataUrl(ticket.qrCode);
+      const updatedTicket = await ticketRepository.update(String(ticket._id), {
+        $set: {
+          qrCodeImage: generatedQrCodeImage,
+        },
+      });
+
+      if (updatedTicket) {
+        ticket.qrCodeImage = updatedTicket.qrCodeImage;
+      }
+    }
+
+    return {
+      rsvpId: String(rsvp._id),
+      eventId: String(event._id),
+      eventTitle: event.title,
+      eventStartDateTime: event.startDateTime,
+      eventTimezone: event.timezone,
+      status: rsvp.status,
+      ticketId: String(ticket._id),
+      qrCode: ticket.qrCode,
+      qrCodeImage: ticket.qrCodeImage ?? null,
+    };
+  }
+
+  private async promoteNextWaitlisted(eventId: string): Promise<IRsvp | null> {
+    const waitlisted = await rsvpRepository.findFirstWaitlisted(eventId);
+    if (!waitlisted) {
+      return null;
+    }
+
+    const updated = await rsvpRepository.update(String(waitlisted._id), {
+      $set: {
+        status: 'registered',
+        waitlistPosition: undefined,
+      },
+    });
+
+    if (!updated) {
+      return null;
+    }
+
+    const updatedTicket = await this.ensureTicket(
+      String(updated._id),
+      String(updated.event),
+      String(updated.user)
+    );
+
+    const event = await eventRepository.findByIdRaw(String(updated.event));
+    if (event) {
+      await this.sendRsvpStatusEmail({
+        userId: String(updated.user),
+        event,
+        status: 'registered',
+        rsvpId: String(updated._id),
+        ticketCode: updatedTicket.qrCode,
+      });
+    }
+
+    return updated;
+  }
+
+  private async ensureTicket(rsvpId: string, eventId: string, userId: string): Promise<ITicket> {
+    const existing = await ticketRepository.findByRsvpId(rsvpId);
+    if (existing) {
+      return existing;
+    }
+
+    const qrCode = `evt_${eventId}:rsvp_${rsvpId}:${crypto.randomUUID()}`;
+    const qrCodeImage = await generateQrCodeDataUrl(qrCode);
+    return ticketRepository.create({
+      rsvp: new mongoose.Types.ObjectId(rsvpId),
+      event: new mongoose.Types.ObjectId(eventId),
+      user: new mongoose.Types.ObjectId(userId),
+      qrCode,
+      qrCodeImage,
+    } as Partial<ITicket>);
+  }
+
+  private async sendRsvpStatusEmail(params: {
+    userId: string;
+    event: IEvent;
+    status: RsvpStatus;
+    rsvpId: string;
+    ticketCode?: string;
+  }): Promise<void> {
+    try {
+      const user = await userRepository.findById(params.userId);
+      if (!user) {
+        return;
+      }
+
+      const websiteUrl =
+        process.env.EMAIL_WEBSITE_URL || process.env.CORS_ORIGIN || 'http://localhost:3000';
+      const eventUrl = `${websiteUrl.replace(/\/$/, '')}/events/${String(params.event._id)}`;
+      const ticketUrl = `${websiteUrl.replace(/\/$/, '')}/tickets/${params.rsvpId}`;
+
+      const template = renderRsvpEmailTemplate({
+        attendeeName: user.name,
+        eventTitle: params.event.title,
+        eventUrl,
+        status: params.status,
+        ticketUrl: params.status === 'registered' ? ticketUrl : undefined,
+        ticketCode: params.ticketCode,
+      });
+
+      await emailService.sendTextEmail({
+        to: user.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      logger.warn('[rsvp] transactional email failed', {
+        userId: params.userId,
+        eventId: String(params.event._id),
+        status: params.status,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  private normalizeFormResponses(formResponses?: RsvpFormInput[]): IRsvpFormResponse[] {
+    if (!Array.isArray(formResponses)) {
+      return [];
+    }
+
+    return formResponses
+      .map((item) => ({
+        question: item.question.trim(),
+        answer: item.answer.trim(),
+      }))
+      .filter((item) => item.question.length > 0 && item.answer.length > 0);
+  }
+
+  private ensureValidObjectId(value: string, message: string): void {
+    if (!mongoose.Types.ObjectId.isValid(value)) {
+      throw new AppError(message, 400);
+    }
+  }
+
+  private ensureEventAcceptsRsvp(event: IEvent): void {
+    if (event.status !== 'published') {
+      throw new AppError('Only published events accept RSVPs', 400);
+    }
+
+    const now = new Date();
+
+    if (event.registrationOpenAt && now < event.registrationOpenAt) {
+      throw new AppError('Registration is not open yet', 400);
+    }
+
+    if (event.registrationCloseAt && now > event.registrationCloseAt) {
+      throw new AppError('Registration is closed', 400);
+    }
+
+    if (now >= event.startDateTime) {
+      throw new AppError('Event has already started', 400);
+    }
+  }
+}
+
+export const rsvpService = new RsvpService();

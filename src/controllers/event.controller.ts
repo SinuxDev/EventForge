@@ -5,6 +5,7 @@ import { AppError } from '../utils/AppError';
 import { ApiResponse } from '../utils/response';
 import { processUploadedFile } from '../middlewares/uploadMiddleware';
 import { eventRepository } from '../repositories/event.repository';
+import { eventCheckInService } from '../services/event-checkin.service';
 
 class EventController {
   createDraft = asyncHandler(async (req: Request, res: Response) => {
@@ -127,6 +128,55 @@ class EventController {
       },
       'Event cover uploaded successfully'
     );
+  });
+
+  checkInByQr = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.checkInByQr({
+      eventId: req.params.id,
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      qrCode: req.body.qrCode,
+      source: req.body.source,
+    });
+
+    ApiResponse.success(
+      res,
+      result,
+      result.alreadyCheckedIn ? 'Already checked in' : 'Check-in successful'
+    );
+  });
+
+  undoCheckIn = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.undoCheckIn({
+      eventId: req.params.id,
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      ticketId: req.body.ticketId,
+    });
+
+    ApiResponse.success(res, result, 'Check-in undone successfully');
+  });
+
+  getAttendance = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.getAttendance(
+      req.params.id,
+      String(req.user._id),
+      req.user.role
+    );
+
+    ApiResponse.success(res, result, 'Attendance retrieved successfully');
   });
 }
 
