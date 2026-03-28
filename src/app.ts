@@ -46,8 +46,10 @@ app.use(compression());
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
-} else {
+} else if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined'));
+} else {
+  app.use((_req, _res, next) => next());
 }
 
 app.use(express.json({ limit: '10mb' }));
