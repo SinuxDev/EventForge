@@ -12,6 +12,14 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
+echo "🧪 Running tests..."
+npm run test
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed! Please fix failing tests before pushing."
+  exit 1
+fi
+
+echo ""
 echo "🔨 Building TypeScript..."
 npm run build
 if [ $? -ne 0 ]; then
