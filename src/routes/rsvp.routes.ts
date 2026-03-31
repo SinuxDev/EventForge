@@ -9,6 +9,11 @@ const router = Router();
 router.use(authenticate, requireRole('attendee', 'organizer', 'admin'));
 
 router.get('/my', rsvpController.listMyRsvps);
+router.get(
+  '/my/managed',
+  validateRequest(rsvpValidation.listManagedMyRsvps),
+  rsvpController.listManagedMyRsvps
+);
 router.get('/:id/ticket', validateRequest(rsvpValidation.cancelRsvp), rsvpController.getMyTicket);
 router.delete('/:id', validateRequest(rsvpValidation.cancelRsvp), rsvpController.cancelRsvp);
 

@@ -2,6 +2,11 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { IEvent } from '../models/event.model';
 import { IRsvp, IRsvpFormResponse, RsvpStatus } from '../models/rsvp.model';
+import {
+  ManagedRsvpSort,
+  ManagedRsvpTab,
+  type ManagedRsvpsAggregationResult,
+} from '../repositories/rsvp.repository';
 import { ITicket } from '../models/ticket.model';
 import { eventRepository } from '../repositories/event.repository';
 import { rsvpRepository } from '../repositories/rsvp.repository';
@@ -47,6 +52,69 @@ interface MyTicketResult {
   ticketId: string;
   qrCode: string;
   qrCodeImage: string | null;
+}
+
+interface ListManagedMyRsvpsParams {
+  userId: string;
+  tab?: ManagedRsvpTab;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: ManagedRsvpSort;
+}
+
+interface ManagedMyRsvpItem {
+  rsvpId: string;
+  status: RsvpStatus;
+  tab: Exclude<ManagedRsvpTab, 'all'>;
+  waitlistPosition: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  event: {
+    eventId: string;
+    title: string;
+    shortSummary: string;
+    startDateTime: Date;
+    endDateTime: Date;
+    timezone: string;
+    attendanceMode: string;
+    venueName: string | null;
+    city: string | null;
+    country: string | null;
+    registrationCloseAt: Date | null;
+    status: string;
+    coverImage: string | null;
+  };
+  actions: {
+    canViewTicket: boolean;
+    canCancel: boolean;
+    canJoinWaitlist: boolean;
+    canLeaveWaitlist: boolean;
+    canReregister: boolean;
+  };
+}
+
+interface ManagedMyRsvpsResult {
+  items: ManagedMyRsvpItem[];
+  counts: {
+    upcoming: number;
+    waitlisted: number;
+    past: number;
+    cancelled: number;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+  filters: {
+    tab: ManagedRsvpTab;
+    search: string;
+    sort: ManagedRsvpSort;
+  };
 }
 
 class RsvpService {
@@ -158,6 +226,49 @@ class RsvpService {
   async listMyRsvps(userId: string): Promise<IRsvp[]> {
     this.ensureValidObjectId(userId, 'Invalid user id');
     return rsvpRepository.listByUser(userId);
+  }
+
+  async listManagedMyRsvps(params: ListManagedMyRsvpsParams): Promise<ManagedMyRsvpsResult> {
+    this.ensureValidObjectId(params.userId, 'Invalid user id');
+
+    const normalizedTab: ManagedRsvpTab = params.tab ?? 'all';
+    const normalizedSearch = params.search?.trim() ?? '';
+    const normalizedPage =
+      Number.isInteger(params.page) && (params.page as number) > 0 ? (params.page as number) : 1;
+    const normalizedLimit =
+      Number.isInteger(params.limit) && (params.limit as number) > 0
+        ? Math.min(params.limit as number, 50)
+        : 10;
+    const normalizedSort: ManagedRsvpSort = params.sort ?? 'eventStartAsc';
+    const now = new Date();
+
+    const result = await rsvpRepository.listManagedByUser({
+      userId: params.userId,
+      tab: normalizedTab,
+      search: normalizedSearch,
+      page: normalizedPage,
+      limit: normalizedLimit,
+      sort: normalizedSort,
+      now,
+    });
+
+    return {
+      items: this.mapManagedItems(result, now),
+      counts: result.countsByTab,
+      pagination: {
+        page: normalizedPage,
+        limit: normalizedLimit,
+        total: result.total,
+        totalPages: Math.ceil(result.total / normalizedLimit),
+        hasNextPage: normalizedPage * normalizedLimit < result.total,
+        hasPrevPage: normalizedPage > 1,
+      },
+      filters: {
+        tab: normalizedTab,
+        search: normalizedSearch,
+        sort: normalizedSort,
+      },
+    };
   }
 
   async cancelRsvp(rsvpId: string, userId: string): Promise<CancelRsvpResult> {
@@ -311,6 +422,51 @@ class RsvpService {
       qrCode,
       qrCodeImage,
     } as Partial<ITicket>);
+  }
+
+  private mapManagedItems(result: ManagedRsvpsAggregationResult, now: Date): ManagedMyRsvpItem[] {
+    return result.items.map((item) => {
+      const registrationCloseAt = item.event.registrationCloseAt ?? null;
+      const eventHasStarted = item.event.startDateTime <= now;
+      const registrationClosed = registrationCloseAt ? registrationCloseAt <= now : false;
+      const canViewTicket = item.status === 'registered';
+      const canCancel = item.status !== 'cancelled' && !eventHasStarted;
+
+      return {
+        rsvpId: String(item._id),
+        status: item.status,
+        tab: item.tab,
+        waitlistPosition: item.waitlistPosition ?? null,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        event: {
+          eventId: String(item.event._id),
+          title: item.event.title,
+          shortSummary: item.event.shortSummary ?? '',
+          startDateTime: item.event.startDateTime,
+          endDateTime: item.event.endDateTime,
+          timezone: item.event.timezone,
+          attendanceMode: item.event.attendanceMode,
+          venueName: item.event.venueName ?? null,
+          city: item.event.city ?? null,
+          country: item.event.country ?? null,
+          registrationCloseAt,
+          status: item.event.status,
+          coverImage: item.event.coverImage ?? null,
+        },
+        actions: {
+          canViewTicket,
+          canCancel,
+          canJoinWaitlist: false,
+          canLeaveWaitlist: item.status === 'waitlisted' && canCancel,
+          canReregister:
+            item.status === 'cancelled' &&
+            !eventHasStarted &&
+            !registrationClosed &&
+            item.event.status === 'published',
+        },
+      };
+    });
   }
 
   private async sendRsvpStatusEmail(params: {

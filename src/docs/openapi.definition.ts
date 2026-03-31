@@ -351,6 +351,61 @@ export const createOpenApiDefinition = () => {
           },
         },
       },
+      [`${apiBasePath}/rsvps/my/managed`]: {
+        get: {
+          tags: ['RSVP'],
+          summary: 'List managed RSVPs for attendee workspace',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'tab',
+              in: 'query',
+              required: false,
+              schema: {
+                type: 'string',
+                enum: ['upcoming', 'waitlisted', 'past', 'cancelled', 'all'],
+              },
+            },
+            {
+              name: 'search',
+              in: 'query',
+              required: false,
+              schema: { type: 'string' },
+            },
+            {
+              name: 'page',
+              in: 'query',
+              required: false,
+              schema: { type: 'integer', minimum: 1, default: 1 },
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              required: false,
+              schema: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
+            },
+            {
+              name: 'sort',
+              in: 'query',
+              required: false,
+              schema: {
+                type: 'string',
+                enum: ['eventStartAsc', 'eventStartDesc', 'createdDesc'],
+              },
+            },
+          ],
+          responses: {
+            200: {
+              description: 'Managed RSVP list retrieved',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ApiSuccess' },
+                },
+              },
+            },
+          },
+        },
+      },
       [`${apiBasePath}/upload/single`]: {
         post: {
           tags: ['Upload'],
