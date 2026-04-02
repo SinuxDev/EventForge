@@ -55,6 +55,16 @@ router.get(
   validateRequest(eventValidation.getAttendance),
   eventController.getAttendance
 );
+router.get(
+  '/:id/attendees',
+  validateRequest(eventValidation.listEventAttendees),
+  eventController.listEventAttendees
+);
+router.get(
+  '/:id/attendees/export',
+  validateRequest(eventValidation.listEventAttendees),
+  eventController.exportEventAttendeesCsv
+);
 router.get('/', validateRequest(eventValidation.listMyEvents), eventController.listMyEvents);
 
 export default router;

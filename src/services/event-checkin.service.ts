@@ -45,8 +45,60 @@ interface AttendanceResult {
   eventId: string;
   registeredCount: number;
   waitlistedCount: number;
+  cancelledCount: number;
   checkedInCount: number;
   attendanceRate: number;
+}
+
+interface EventAttendeesParams {
+  eventId: string;
+  actorUserId: string;
+  actorRole: ActorRole;
+  status: 'all' | 'registered' | 'waitlisted' | 'cancelled';
+  checkIn: 'all' | 'checked_in' | 'not_checked_in';
+  search?: string;
+  page: number;
+  limit: number;
+}
+
+interface EventAttendeeResult {
+  rsvpId: string;
+  status: 'registered' | 'waitlisted' | 'cancelled';
+  waitlistPosition: number | null;
+  joinedAt: Date;
+  attendee: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  ticket: {
+    id: string;
+    code: string;
+    isCheckedIn: boolean;
+    checkedInAt: Date | null;
+  } | null;
+}
+
+interface EventAttendeesResult {
+  eventId: string;
+  items: EventAttendeeResult[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+interface ExportEventAttendeesParams {
+  eventId: string;
+  actorUserId: string;
+  actorRole: ActorRole;
+  status: 'all' | 'registered' | 'waitlisted' | 'cancelled';
+  checkIn: 'all' | 'checked_in' | 'not_checked_in';
+  search?: string;
 }
 
 class EventCheckInService {
@@ -151,9 +203,10 @@ class EventCheckInService {
   ): Promise<AttendanceResult> {
     const event = await this.ensureEventAccess(eventId, actorUserId, actorRole);
 
-    const [registeredCount, waitlistedCount, checkedInCount] = await Promise.all([
+    const [registeredCount, waitlistedCount, cancelledCount, checkedInCount] = await Promise.all([
       rsvpRepository.countRegisteredByEvent(eventId),
       rsvpRepository.countWaitlistedByEvent(eventId),
+      rsvpRepository.countCancelledByEvent(eventId),
       ticketRepository.countCheckedInByEvent(eventId),
     ]);
 
@@ -164,9 +217,113 @@ class EventCheckInService {
       eventId: String(event._id),
       registeredCount,
       waitlistedCount,
+      cancelledCount,
       checkedInCount,
       attendanceRate,
     };
+  }
+
+  async listEventAttendees(params: EventAttendeesParams): Promise<EventAttendeesResult> {
+    const event = await this.ensureEventAccess(
+      params.eventId,
+      params.actorUserId,
+      params.actorRole
+    );
+
+    const safePage = Number.isInteger(params.page) && params.page > 0 ? params.page : 1;
+    const safeLimit = Number.isInteger(params.limit) && params.limit > 0 ? params.limit : 20;
+
+    const result = await rsvpRepository.listEventAttendees({
+      eventId: params.eventId,
+      status: params.status,
+      checkIn: params.checkIn,
+      search: params.search,
+      page: safePage,
+      limit: safeLimit,
+    });
+
+    const totalPages = result.total > 0 ? Math.ceil(result.total / safeLimit) : 0;
+
+    return {
+      eventId: String(event._id),
+      items: result.items.map((item) => ({
+        rsvpId: String(item._id),
+        status: item.status,
+        waitlistPosition: item.waitlistPosition ?? null,
+        joinedAt: item.createdAt,
+        attendee: {
+          id: String(item.attendee._id),
+          name: item.attendee.name,
+          email: item.attendee.email,
+        },
+        ticket: item.ticket?._id
+          ? {
+              id: String(item.ticket._id),
+              code: item.ticket.qrCode,
+              isCheckedIn: Boolean(item.ticket.isCheckedIn),
+              checkedInAt: item.ticket.checkedInAt ?? null,
+            }
+          : null,
+      })),
+      pagination: {
+        total: result.total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages,
+        hasNextPage: totalPages > 0 ? safePage < totalPages : false,
+        hasPrevPage: safePage > 1,
+      },
+    };
+  }
+
+  async exportEventAttendeesCsv(params: ExportEventAttendeesParams): Promise<string> {
+    await this.ensureEventAccess(params.eventId, params.actorUserId, params.actorRole);
+
+    const items = await rsvpRepository.listEventAttendeesForExport({
+      eventId: params.eventId,
+      status: params.status,
+      checkIn: params.checkIn,
+      search: params.search,
+    });
+
+    const rows = items.map((item) => {
+      const checkInState = item.ticket?.isCheckedIn ? 'checked_in' : 'not_checked_in';
+      const checkedInAt = item.ticket?.checkedInAt ? item.ticket.checkedInAt.toISOString() : '';
+
+      return [
+        String(item._id),
+        item.attendee.name,
+        item.attendee.email,
+        item.status,
+        item.waitlistPosition ?? '',
+        checkInState,
+        checkedInAt,
+        item.createdAt.toISOString(),
+      ];
+    });
+
+    const headers = [
+      'rsvp_id',
+      'attendee_name',
+      'attendee_email',
+      'status',
+      'waitlist_position',
+      'check_in_state',
+      'checked_in_at',
+      'joined_at',
+    ];
+
+    const escapeCell = (value: string | number): string => {
+      const normalized = String(value);
+      const escaped = normalized.replace(/"/g, '""');
+      return `"${escaped}"`;
+    };
+
+    const csvRows = [headers.map(escapeCell).join(',')]
+      .concat(rows.map((row) => row.map((cell) => escapeCell(cell as string | number)).join(',')))
+      .join('\n');
+
+    return csvRows;
   }
 
   private async ensureEventAccess(

@@ -178,6 +178,64 @@ class EventController {
 
     ApiResponse.success(res, result, 'Attendance retrieved successfully');
   });
+
+  listEventAttendees = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.listEventAttendees({
+      eventId: req.params.id,
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      status:
+        req.query.status === 'registered' ||
+        req.query.status === 'waitlisted' ||
+        req.query.status === 'cancelled'
+          ? req.query.status
+          : 'all',
+      checkIn:
+        req.query.checkIn === 'checked_in' || req.query.checkIn === 'not_checked_in'
+          ? req.query.checkIn
+          : 'all',
+      search: typeof req.query.q === 'string' ? req.query.q : undefined,
+      page: req.query.page ? Number(req.query.page) : 1,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+    });
+
+    ApiResponse.success(res, result, 'Event attendees retrieved successfully');
+  });
+
+  exportEventAttendeesCsv = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const csv = await eventCheckInService.exportEventAttendeesCsv({
+      eventId: req.params.id,
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      status:
+        req.query.status === 'registered' ||
+        req.query.status === 'waitlisted' ||
+        req.query.status === 'cancelled'
+          ? req.query.status
+          : 'all',
+      checkIn:
+        req.query.checkIn === 'checked_in' || req.query.checkIn === 'not_checked_in'
+          ? req.query.checkIn
+          : 'all',
+      search: typeof req.query.q === 'string' ? req.query.q : undefined,
+    });
+
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="event-attendees-${req.params.id}-${dateLabel}.csv"`
+    );
+    res.status(200).send(csv);
+  });
 }
 
 export const eventController = new EventController();

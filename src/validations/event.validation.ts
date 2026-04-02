@@ -239,4 +239,13 @@ export const eventValidation = {
   ],
 
   getAttendance: [param('id').isMongoId().withMessage('Invalid event id')],
+
+  listEventAttendees: [
+    param('id').isMongoId().withMessage('Invalid event id'),
+    query('status').optional().isIn(['all', 'registered', 'waitlisted', 'cancelled']),
+    query('checkIn').optional().isIn(['all', 'checked_in', 'not_checked_in']),
+    query('q').optional().trim().isLength({ min: 1, max: 120 }),
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+  ],
 };
