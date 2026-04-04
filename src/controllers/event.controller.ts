@@ -236,6 +236,36 @@ class EventController {
     );
     res.status(200).send(csv);
   });
+
+  exportBulkEventAttendeesXlsx = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.exportBulkEventAttendeesXlsx({
+      eventIds: Array.isArray(req.body.eventIds) ? req.body.eventIds : [],
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      status:
+        req.body.status === 'registered' ||
+        req.body.status === 'waitlisted' ||
+        req.body.status === 'cancelled'
+          ? req.body.status
+          : 'all',
+      checkIn:
+        req.body.checkIn === 'checked_in' || req.body.checkIn === 'not_checked_in'
+          ? req.body.checkIn
+          : 'all',
+      search: typeof req.body.q === 'string' ? req.body.q : undefined,
+    });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.status(200).send(result.buffer);
+  });
 }
 
 export const eventController = new EventController();

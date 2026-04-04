@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import ExcelJS from 'exceljs';
 import { IEvent } from '../models/event.model';
 import { eventRepository } from '../repositories/event.repository';
 import { rsvpRepository } from '../repositories/rsvp.repository';
@@ -101,7 +102,44 @@ interface ExportEventAttendeesParams {
   search?: string;
 }
 
+interface ExportBulkEventAttendeesXlsxParams {
+  eventIds: string[];
+  actorUserId: string;
+  actorRole: ActorRole;
+  status: 'all' | 'registered' | 'waitlisted' | 'cancelled';
+  checkIn: 'all' | 'checked_in' | 'not_checked_in';
+  search?: string;
+}
+
+interface BulkEventAttendeesXlsxExportResult {
+  buffer: Buffer;
+  filename: string;
+}
+
 class EventCheckInService {
+  private buildWorksheetName(rawTitle: string, fallbackId: string, usedNames: Set<string>): string {
+    const normalizedBase = rawTitle
+      .trim()
+      .replace(/[\\/*?:[\]]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .slice(0, 24)
+      .trim();
+
+    const base = normalizedBase.length > 0 ? normalizedBase : `event-${fallbackId.slice(-6)}`;
+    let candidate = `${base}-${fallbackId.slice(-4)}`.slice(0, 31);
+    let counter = 1;
+
+    while (usedNames.has(candidate)) {
+      const suffix = `-${counter}`;
+      const trimmedBase = base.slice(0, Math.max(1, 31 - suffix.length));
+      candidate = `${trimmedBase}${suffix}`;
+      counter += 1;
+    }
+
+    usedNames.add(candidate);
+    return candidate;
+  }
+
   async checkInByQr(params: CheckInByQrParams): Promise<CheckInResult> {
     const event = await this.ensureEventAccess(
       params.eventId,
@@ -324,6 +362,97 @@ class EventCheckInService {
       .join('\n');
 
     return csvRows;
+  }
+
+  async exportBulkEventAttendeesXlsx(
+    params: ExportBulkEventAttendeesXlsxParams
+  ): Promise<BulkEventAttendeesXlsxExportResult> {
+    if (params.eventIds.length === 0) {
+      throw new AppError('At least one event id is required', 400);
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'EventForge';
+    workbook.created = new Date();
+
+    const usedWorksheetNames = new Set<string>();
+
+    for (const eventId of params.eventIds) {
+      const event = await this.ensureEventAccess(eventId, params.actorUserId, params.actorRole);
+      const attendees = await rsvpRepository.listEventAttendeesForExport({
+        eventId,
+        status: params.status,
+        checkIn: params.checkIn,
+        search: params.search,
+      });
+
+      const sheetName = this.buildWorksheetName(event.title, String(event._id), usedWorksheetNames);
+      const worksheet = workbook.addWorksheet(sheetName);
+
+      worksheet.getCell('A1').value = 'Event';
+      worksheet.getCell('B1').value = event.title;
+      worksheet.getCell('A2').value = 'Start';
+      worksheet.getCell('B2').value = event.startDateTime.toISOString();
+      worksheet.getCell('A3').value = 'Timezone';
+      worksheet.getCell('B3').value = event.timezone;
+      worksheet.getCell('D1').value = 'Exported At';
+      worksheet.getCell('E1').value = new Date().toISOString();
+
+      const headerRow = worksheet.getRow(5);
+      headerRow.values = [
+        'rsvp_id',
+        'attendee_name',
+        'attendee_email',
+        'status',
+        'waitlist_position',
+        'check_in_state',
+        'checked_in_at',
+        'joined_at',
+        'ticket_code',
+      ];
+      headerRow.font = { bold: true };
+
+      attendees.forEach((item) => {
+        worksheet.addRow([
+          String(item._id),
+          item.attendee.name,
+          item.attendee.email,
+          item.status,
+          item.waitlistPosition ?? '',
+          item.ticket?.isCheckedIn ? 'checked_in' : 'not_checked_in',
+          item.ticket?.checkedInAt ? item.ticket.checkedInAt.toISOString() : '',
+          item.createdAt.toISOString(),
+          item.ticket?.qrCode ?? '',
+        ]);
+      });
+
+      worksheet.columns = [
+        { width: 30 },
+        { width: 24 },
+        { width: 30 },
+        { width: 14 },
+        { width: 18 },
+        { width: 16 },
+        { width: 24 },
+        { width: 24 },
+        { width: 36 },
+      ];
+
+      worksheet.views = [{ state: 'frozen', ySplit: 5 }];
+      worksheet.autoFilter = {
+        from: { row: 5, column: 1 },
+        to: { row: 5, column: 9 },
+      };
+    }
+
+    const raw = await workbook.xlsx.writeBuffer();
+    const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+    const dateLabel = new Date().toISOString().slice(0, 10);
+
+    return {
+      buffer,
+      filename: `event-attendees-bulk-${dateLabel}.xlsx`,
+    };
   }
 
   private async ensureEventAccess(

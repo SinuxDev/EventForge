@@ -65,6 +65,11 @@ router.get(
   validateRequest(eventValidation.listEventAttendees),
   eventController.exportEventAttendeesCsv
 );
+router.post(
+  '/attendees/export-bulk',
+  validateRequest(eventValidation.exportBulkAttendees),
+  eventController.exportBulkEventAttendeesXlsx
+);
 router.get('/', validateRequest(eventValidation.listMyEvents), eventController.listMyEvents);
 
 export default router;

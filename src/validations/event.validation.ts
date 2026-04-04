@@ -248,4 +248,14 @@ export const eventValidation = {
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   ],
+
+  exportBulkAttendees: [
+    body('eventIds')
+      .isArray({ min: 1, max: 50 })
+      .withMessage('eventIds must contain between 1 and 50 events'),
+    body('eventIds.*').isMongoId().withMessage('Each event id must be valid'),
+    body('status').optional().isIn(['all', 'registered', 'waitlisted', 'cancelled']),
+    body('checkIn').optional().isIn(['all', 'checked_in', 'not_checked_in']),
+    body('q').optional().trim().isLength({ min: 1, max: 120 }),
+  ],
 };
