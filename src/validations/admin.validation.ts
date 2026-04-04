@@ -50,4 +50,18 @@ export const adminValidation = {
     query('targetUserId').optional().isMongoId(),
     query('actorUserId').optional().isMongoId(),
   ],
+
+  listEvents: [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('q').optional().trim().isLength({ min: 1, max: 120 }),
+    query('organizer').optional().trim().isLength({ min: 1, max: 120 }),
+    query('organizerId').optional().isMongoId(),
+    query('status').optional().isIn(['draft', 'published', 'cancelled']),
+    query('startDateFrom').optional().isISO8601(),
+    query('startDateTo').optional().isISO8601(),
+    query('sort').optional().isIn(['start_asc', 'start_desc', 'created_desc']),
+  ],
+
+  getEventById: [param('id').isMongoId().withMessage('Invalid event id')],
 };

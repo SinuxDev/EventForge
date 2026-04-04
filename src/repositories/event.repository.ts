@@ -113,6 +113,70 @@ class EventRepository extends BaseRepository<IEvent> {
 
     return this.findWithPagination(filter, params.page, params.limit, sort);
   }
+
+  async findAdminEvents(params: {
+    page: number;
+    limit: number;
+    query?: string;
+    organizer?: string;
+    organizerId?: string;
+    status?: 'draft' | 'published' | 'cancelled';
+    startDateFrom?: Date;
+    startDateTo?: Date;
+    sort?: 'start_asc' | 'start_desc' | 'created_desc';
+  }) {
+    const filter: FilterQuery<IEvent> = {};
+
+    if (params.query) {
+      const regex = new RegExp(params.query, 'i');
+      filter.$or = [{ title: regex }, { shortSummary: regex }, { category: regex }];
+    }
+
+    if (params.organizer) {
+      const organizerRegex = new RegExp(params.organizer, 'i');
+      const organizerClauses: FilterQuery<IEvent>[] = [
+        { organizerName: organizerRegex },
+        { contactEmail: organizerRegex },
+      ];
+
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { $or: organizerClauses }];
+        delete filter.$or;
+      } else {
+        filter.$or = organizerClauses;
+      }
+    }
+
+    if (params.organizerId && mongoose.Types.ObjectId.isValid(params.organizerId)) {
+      filter.organizerId = new mongoose.Types.ObjectId(params.organizerId);
+    }
+
+    if (params.status) {
+      filter.status = params.status;
+    }
+
+    if (params.startDateFrom || params.startDateTo) {
+      filter.startDateTime = {} as IEvent['startDateTime'];
+
+      if (params.startDateFrom) {
+        (filter.startDateTime as unknown as { $gte?: Date }).$gte = params.startDateFrom;
+      }
+
+      if (params.startDateTo) {
+        (filter.startDateTime as unknown as { $lte?: Date }).$lte = params.startDateTo;
+      }
+    }
+
+    let sort: Record<string, 1 | -1> = { startDateTime: -1, createdAt: -1 };
+
+    if (params.sort === 'start_asc') {
+      sort = { startDateTime: 1, createdAt: -1 };
+    } else if (params.sort === 'created_desc') {
+      sort = { createdAt: -1 };
+    }
+
+    return this.findWithPagination(filter, params.page, params.limit, sort);
+  }
 }
 
 export const eventRepository = new EventRepository();

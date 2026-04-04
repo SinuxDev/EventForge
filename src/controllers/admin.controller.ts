@@ -74,6 +74,38 @@ class AdminController {
 
     ApiResponse.success(res, result, 'Admin audit logs retrieved successfully');
   });
+
+  listEvents = asyncHandler(async (req: Request, res: Response) => {
+    const result = await adminService.listEvents({
+      page: req.query.page ? Number(req.query.page) : 1,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+      organizer: typeof req.query.organizer === 'string' ? req.query.organizer : undefined,
+      organizerId: typeof req.query.organizerId === 'string' ? req.query.organizerId : undefined,
+      status:
+        req.query.status === 'draft' ||
+        req.query.status === 'published' ||
+        req.query.status === 'cancelled'
+          ? req.query.status
+          : undefined,
+      startDateFrom:
+        typeof req.query.startDateFrom === 'string' ? req.query.startDateFrom : undefined,
+      startDateTo: typeof req.query.startDateTo === 'string' ? req.query.startDateTo : undefined,
+      sort:
+        req.query.sort === 'start_asc' ||
+        req.query.sort === 'start_desc' ||
+        req.query.sort === 'created_desc'
+          ? req.query.sort
+          : undefined,
+    });
+
+    ApiResponse.success(res, result, 'Admin events retrieved successfully');
+  });
+
+  getEventById = asyncHandler(async (req: Request, res: Response) => {
+    const event = await adminService.getEventById(req.params.id);
+    ApiResponse.success(res, event, 'Admin event retrieved successfully');
+  });
 }
 
 export const adminController = new AdminController();

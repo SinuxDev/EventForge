@@ -2,6 +2,7 @@ import mongoose, { FilterQuery } from 'mongoose';
 import { IUser, UserRole } from '../models/user.model';
 import { IAdminAuditLog } from '../models/admin-audit-log.model';
 import { adminAuditLogRepository } from '../repositories/admin-audit-log.repository';
+import { eventRepository } from '../repositories/event.repository';
 import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../utils/AppError';
 
@@ -33,6 +34,18 @@ interface ListAuditLogsParams {
   action?: IAdminAuditLog['action'];
   targetUserId?: string;
   actorUserId?: string;
+}
+
+interface ListEventsParams {
+  page?: number;
+  limit?: number;
+  q?: string;
+  organizer?: string;
+  organizerId?: string;
+  status?: 'draft' | 'published' | 'cancelled';
+  startDateFrom?: string;
+  startDateTo?: string;
+  sort?: 'start_asc' | 'start_desc' | 'created_desc';
 }
 
 class AdminService {
@@ -146,6 +159,33 @@ class AdminService {
       targetUserId: params.targetUserId,
       actorUserId: params.actorUserId,
     });
+  }
+
+  async listEvents(params: ListEventsParams) {
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 20;
+
+    return eventRepository.findAdminEvents({
+      page,
+      limit,
+      query: params.q?.trim() || undefined,
+      organizer: params.organizer?.trim() || undefined,
+      organizerId: params.organizerId,
+      status: params.status,
+      startDateFrom: params.startDateFrom ? new Date(params.startDateFrom) : undefined,
+      startDateTo: params.startDateTo ? new Date(params.startDateTo) : undefined,
+      sort: params.sort,
+    });
+  }
+
+  async getEventById(eventId: string) {
+    const event = await eventRepository.findByIdRaw(eventId);
+
+    if (!event) {
+      throw new AppError('Event not found', 404);
+    }
+
+    return event;
   }
 }
 

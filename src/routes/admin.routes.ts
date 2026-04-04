@@ -9,6 +9,12 @@ const router = Router();
 router.use(authenticate, requireRole('admin'));
 
 router.get('/users', validateRequest(adminValidation.listUsers), adminController.listUsers);
+router.get('/events', validateRequest(adminValidation.listEvents), adminController.listEvents);
+router.get(
+  '/events/:id',
+  validateRequest(adminValidation.getEventById),
+  adminController.getEventById
+);
 router.get(
   '/audit-logs',
   validateRequest(adminValidation.listAuditLogs),
