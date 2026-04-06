@@ -28,6 +28,7 @@ describe('Admin governance email integration', () => {
   });
 
   it('sends a role change email after updating a user role', async () => {
+    const reason = 'Promoted to organizer for event management';
     const sendTextEmailSpy = jest
       .spyOn(emailService, 'sendTextEmail')
       .mockResolvedValue({ messageId: 'role-email-message-id' });
@@ -47,7 +48,7 @@ describe('Admin governance email integration', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         role: 'organizer',
-        reason: 'Promoted to organizer for event management',
+        reason,
       })
       .expect(200);
 
@@ -65,6 +66,13 @@ describe('Admin governance email integration', () => {
       expect.objectContaining({
         to: 'role-target@example.com',
         subject: 'Your EventForge role was updated to Organizer',
+        text: expect.stringContaining(`Reason provided by the admin team:\n${reason}`),
+        html: expect.stringContaining('Reason provided by the admin team'),
+      })
+    );
+    expect(sendTextEmailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining(reason),
       })
     );
 
@@ -73,6 +81,7 @@ describe('Admin governance email integration', () => {
   });
 
   it('sends a suspension email after suspending a user', async () => {
+    const reason = 'Suspended for repeated policy violations';
     const sendTextEmailSpy = jest
       .spyOn(emailService, 'sendTextEmail')
       .mockResolvedValue({ messageId: 'suspension-email-message-id' });
@@ -92,7 +101,7 @@ describe('Admin governance email integration', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         isSuspended: true,
-        reason: 'Suspended for repeated policy violations',
+        reason,
       })
       .expect(200);
 
@@ -110,6 +119,13 @@ describe('Admin governance email integration', () => {
       expect.objectContaining({
         to: 'suspension-target@example.com',
         subject: 'Your EventForge account has been suspended',
+        text: expect.stringContaining(`Reason provided by the admin team:\n${reason}`),
+        html: expect.stringContaining('Reason provided by the admin team'),
+      })
+    );
+    expect(sendTextEmailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining(reason),
       })
     );
 
@@ -118,6 +134,7 @@ describe('Admin governance email integration', () => {
   });
 
   it('sends a reactivation email after unsuspending a user', async () => {
+    const reason = 'Appeal approved after review';
     const sendTextEmailSpy = jest
       .spyOn(emailService, 'sendTextEmail')
       .mockResolvedValue({ messageId: 'reactivation-email-message-id' });
@@ -138,7 +155,7 @@ describe('Admin governance email integration', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         isSuspended: false,
-        reason: 'Appeal approved after review',
+        reason,
       })
       .expect(200);
 
@@ -156,6 +173,13 @@ describe('Admin governance email integration', () => {
       expect.objectContaining({
         to: 'reactivated@example.com',
         subject: 'Your EventForge account has been reactivated',
+        text: expect.stringContaining(`Reason provided by the admin team:\n${reason}`),
+        html: expect.stringContaining('Reason provided by the admin team'),
+      })
+    );
+    expect(sendTextEmailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining(reason),
       })
     );
 

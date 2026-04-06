@@ -128,6 +128,7 @@ class AdminService {
         recipientName: targetUser.name,
         previousRole,
         nextRole: params.role,
+        reason: params.reason,
         supportName: emailContext.supportName,
         supportEmail: emailContext.supportEmail,
         websiteUrl: emailContext.websiteUrl,
@@ -192,6 +193,7 @@ class AdminService {
       const template = renderSuspensionStatusEmailTemplate({
         recipientName: targetUser.name,
         isSuspended: params.isSuspended,
+        reason: params.reason,
         supportName: emailContext.supportName,
         supportEmail: emailContext.supportEmail,
         websiteUrl: emailContext.websiteUrl,
