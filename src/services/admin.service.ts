@@ -5,6 +5,10 @@ import { adminAuditLogRepository } from '../repositories/admin-audit-log.reposit
 import { eventRepository } from '../repositories/event.repository';
 import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
+import { renderRoleChangeEmailTemplate } from '../lib/role-change-email-template';
+import { renderSuspensionStatusEmailTemplate } from '../lib/suspension-status-email-template';
+import { emailService } from './email.service';
 
 interface ListUsersParams {
   page?: number;
@@ -49,6 +53,15 @@ interface ListEventsParams {
 }
 
 class AdminService {
+  private getEmailContext() {
+    return {
+      supportName: process.env.EMAIL_FROM_NAME || 'EventForge Support',
+      supportEmail: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'support@example.com',
+      websiteUrl:
+        process.env.EMAIL_WEBSITE_URL || process.env.CORS_ORIGIN || 'http://localhost:3000',
+    };
+  }
+
   async listUsers(params: ListUsersParams) {
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
@@ -108,6 +121,34 @@ class AdminService {
       },
     });
 
+    const emailContext = this.getEmailContext();
+
+    try {
+      const template = renderRoleChangeEmailTemplate({
+        recipientName: targetUser.name,
+        previousRole,
+        nextRole: params.role,
+        supportName: emailContext.supportName,
+        supportEmail: emailContext.supportEmail,
+        websiteUrl: emailContext.websiteUrl,
+      });
+
+      await emailService.sendTextEmail({
+        to: targetUser.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      logger.warn('[admin] role change email failed', {
+        targetUserId: params.targetUserId,
+        recipientEmail: targetUser.email,
+        previousRole,
+        nextRole: params.role,
+        error: error instanceof Error ? error.message : 'Unknown email delivery error',
+      });
+    }
+
     return targetUser;
   }
 
@@ -144,6 +185,33 @@ class AdminService {
         nextSuspendedState: params.isSuspended,
       },
     });
+
+    const emailContext = this.getEmailContext();
+
+    try {
+      const template = renderSuspensionStatusEmailTemplate({
+        recipientName: targetUser.name,
+        isSuspended: params.isSuspended,
+        supportName: emailContext.supportName,
+        supportEmail: emailContext.supportEmail,
+        websiteUrl: emailContext.websiteUrl,
+      });
+
+      await emailService.sendTextEmail({
+        to: targetUser.email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+    } catch (error) {
+      logger.warn('[admin] suspension status email failed', {
+        targetUserId: params.targetUserId,
+        recipientEmail: targetUser.email,
+        previousSuspendedState,
+        nextSuspendedState: params.isSuspended,
+        error: error instanceof Error ? error.message : 'Unknown email delivery error',
+      });
+    }
 
     return targetUser;
   }
