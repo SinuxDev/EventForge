@@ -1,4 +1,4 @@
-import { body } from 'express-validator';
+import { body, param, query } from 'express-validator';
 
 export const appealRequestValidation = {
   create: [
@@ -40,5 +40,27 @@ export const appealRequestValidation = {
       .optional()
       .isIn(['public-website', 'authenticated-website'])
       .withMessage('Source is invalid'),
+  ],
+  listAdmin: [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('status').optional().isIn(['submitted', 'in_review', 'resolved', 'rejected']),
+    query('issueType')
+      .optional()
+      .isIn([
+        'account_suspension',
+        'policy_warning',
+        'payment_restriction',
+        'content_violation',
+        'other',
+      ]),
+    query('source').optional().isIn(['public-website', 'authenticated-website']),
+    query('q').optional().trim().isLength({ min: 1, max: 120 }),
+  ],
+  updateAdminStatus: [
+    param('id').isMongoId().withMessage('Invalid appeal request id'),
+    body('status')
+      .isIn(['submitted', 'in_review', 'resolved', 'rejected'])
+      .withMessage('Invalid appeal status'),
   ],
 };
