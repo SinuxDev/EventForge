@@ -46,6 +46,11 @@ router.post(
   eventController.checkInByQr
 );
 router.post(
+  '/:id/check-in/ticket',
+  validateRequest(eventValidation.checkInByTicket),
+  eventController.checkInByTicket
+);
+router.post(
   '/:id/check-in/undo',
   validateRequest(eventValidation.undoCheckIn),
   eventController.undoCheckIn

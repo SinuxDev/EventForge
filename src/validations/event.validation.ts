@@ -233,6 +233,12 @@ export const eventValidation = {
     body('source').isIn(['scanner', 'manual']).withMessage('source must be scanner or manual'),
   ],
 
+  checkInByTicket: [
+    param('id').isMongoId().withMessage('Invalid event id'),
+    body('ticketId').isMongoId().withMessage('ticketId is required'),
+    body('source').isIn(['lookup']).withMessage('source must be lookup'),
+  ],
+
   undoCheckIn: [
     param('id').isMongoId().withMessage('Invalid event id'),
     body('ticketId').isMongoId().withMessage('ticketId is required'),

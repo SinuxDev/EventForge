@@ -150,6 +150,26 @@ class EventController {
     );
   });
 
+  checkInByTicket = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const result = await eventCheckInService.checkInByTicket({
+      eventId: req.params.id,
+      actorUserId: String(req.user._id),
+      actorRole: req.user.role,
+      ticketId: req.body.ticketId,
+      source: req.body.source,
+    });
+
+    ApiResponse.success(
+      res,
+      result,
+      result.alreadyCheckedIn ? 'Already checked in' : 'Check-in successful'
+    );
+  });
+
   undoCheckIn = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new AppError('Unauthorized', 401);

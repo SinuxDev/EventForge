@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import ExcelJS from 'exceljs';
 import { IEvent } from '../models/event.model';
+import { ITicket } from '../models/ticket.model';
 import { eventRepository } from '../repositories/event.repository';
 import { rsvpRepository } from '../repositories/rsvp.repository';
 import { ticketRepository } from '../repositories/ticket.repository';
@@ -8,6 +9,7 @@ import { userRepository } from '../repositories/user.repository';
 import { AppError } from '../utils/AppError';
 
 type ActorRole = 'attendee' | 'organizer' | 'admin';
+type CheckInSource = 'scanner' | 'manual' | 'lookup';
 
 interface CheckInByQrParams {
   eventId: string;
@@ -15,6 +17,14 @@ interface CheckInByQrParams {
   actorRole: ActorRole;
   qrCode: string;
   source: 'scanner' | 'manual';
+}
+
+interface CheckInByTicketParams {
+  eventId: string;
+  actorUserId: string;
+  actorRole: ActorRole;
+  ticketId: string;
+  source: 'lookup';
 }
 
 interface UndoCheckInParams {
@@ -33,7 +43,7 @@ interface CheckInResult {
   attendeeEmail: string;
   alreadyCheckedIn: boolean;
   checkedInAt: Date;
-  source: 'scanner' | 'manual';
+  source: CheckInSource;
 }
 
 interface UndoCheckInResult {
@@ -117,6 +127,57 @@ interface BulkEventAttendeesXlsxExportResult {
 }
 
 class EventCheckInService {
+  private async completeTicketCheckIn(params: {
+    event: IEvent;
+    ticket: ITicket;
+    actorUserId: string;
+    source: CheckInSource;
+  }): Promise<CheckInResult> {
+    const attendee = await userRepository.findById(String(params.ticket.user));
+    if (!attendee) {
+      throw new AppError('Ticket owner not found', 404);
+    }
+
+    if (params.ticket.isCheckedIn && params.ticket.checkedInAt) {
+      return {
+        eventId: String(params.event._id),
+        ticketId: String(params.ticket._id),
+        rsvpId: String(params.ticket.rsvp),
+        attendeeId: String(attendee._id),
+        attendeeName: attendee.name,
+        attendeeEmail: attendee.email,
+        alreadyCheckedIn: true,
+        checkedInAt: params.ticket.checkedInAt,
+        source: params.source,
+      };
+    }
+
+    const now = new Date();
+    const updated = await ticketRepository.update(String(params.ticket._id), {
+      $set: {
+        isCheckedIn: true,
+        checkedInAt: now,
+        checkedInBy: new mongoose.Types.ObjectId(params.actorUserId),
+      },
+    });
+
+    if (!updated || !updated.checkedInAt) {
+      throw new AppError('Unable to complete check-in', 500);
+    }
+
+    return {
+      eventId: String(params.event._id),
+      ticketId: String(updated._id),
+      rsvpId: String(updated.rsvp),
+      attendeeId: String(attendee._id),
+      attendeeName: attendee.name,
+      attendeeEmail: attendee.email,
+      alreadyCheckedIn: false,
+      checkedInAt: updated.checkedInAt,
+      source: params.source,
+    };
+  }
+
   private buildWorksheetName(rawTitle: string, fallbackId: string, usedNames: Set<string>): string {
     const normalizedBase = rawTitle
       .trim()
@@ -152,49 +213,33 @@ class EventCheckInService {
       throw new AppError('Ticket not found for this event', 404);
     }
 
-    const attendee = await userRepository.findById(String(ticket.user));
-    if (!attendee) {
-      throw new AppError('Ticket owner not found', 404);
-    }
-
-    if (ticket.isCheckedIn && ticket.checkedInAt) {
-      return {
-        eventId: String(event._id),
-        ticketId: String(ticket._id),
-        rsvpId: String(ticket.rsvp),
-        attendeeId: String(attendee._id),
-        attendeeName: attendee.name,
-        attendeeEmail: attendee.email,
-        alreadyCheckedIn: true,
-        checkedInAt: ticket.checkedInAt,
-        source: params.source,
-      };
-    }
-
-    const now = new Date();
-    const updated = await ticketRepository.update(String(ticket._id), {
-      $set: {
-        isCheckedIn: true,
-        checkedInAt: now,
-        checkedInBy: new mongoose.Types.ObjectId(params.actorUserId),
-      },
-    });
-
-    if (!updated || !updated.checkedInAt) {
-      throw new AppError('Unable to complete check-in', 500);
-    }
-
-    return {
-      eventId: String(event._id),
-      ticketId: String(updated._id),
-      rsvpId: String(updated.rsvp),
-      attendeeId: String(attendee._id),
-      attendeeName: attendee.name,
-      attendeeEmail: attendee.email,
-      alreadyCheckedIn: false,
-      checkedInAt: updated.checkedInAt,
+    return this.completeTicketCheckIn({
+      event,
+      ticket,
+      actorUserId: params.actorUserId,
       source: params.source,
-    };
+    });
+  }
+
+  async checkInByTicket(params: CheckInByTicketParams): Promise<CheckInResult> {
+    const event = await this.ensureEventAccess(
+      params.eventId,
+      params.actorUserId,
+      params.actorRole
+    );
+
+    const ticket = await ticketRepository.findByIdAndEvent(params.ticketId, params.eventId);
+
+    if (!ticket) {
+      throw new AppError('Ticket not found for this event', 404);
+    }
+
+    return this.completeTicketCheckIn({
+      event,
+      ticket,
+      actorUserId: params.actorUserId,
+      source: params.source,
+    });
   }
 
   async undoCheckIn(params: UndoCheckInParams): Promise<UndoCheckInResult> {
