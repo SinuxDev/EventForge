@@ -50,7 +50,7 @@ class AuthService {
 
     const createdUser = await userRepository.create({
       name: payload.name,
-      email: payload.email.toLowerCase(),
+      email: payload.email,
       password: payload.password,
       role: payload.role ?? 'attendee',
       provider: 'credentials',
@@ -130,7 +130,7 @@ class AuthService {
 
     const createdUser = await userRepository.create({
       name: payload.name,
-      email: payload.email.toLowerCase(),
+      email: payload.email,
       role: payload.role ?? 'attendee',
       provider: payload.provider,
       providerId: payload.providerId,

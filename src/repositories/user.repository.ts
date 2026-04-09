@@ -8,11 +8,24 @@ class UserRepository extends BaseRepository<IUser> {
   }
 
   async findByEmail(email: string): Promise<IUser | null> {
-    return this.model.findOne({ email: email.toLowerCase() }).exec();
+    const emailCanonical = email.trim().toLowerCase();
+
+    return this.model
+      .findOne({
+        $or: [{ emailCanonical }, { email: emailCanonical }],
+      })
+      .exec();
   }
 
   async findByEmailWithPassword(email: string): Promise<IUser | null> {
-    return this.model.findOne({ email: email.toLowerCase() }).select('+password').exec();
+    const emailCanonical = email.trim().toLowerCase();
+
+    return this.model
+      .findOne({
+        $or: [{ emailCanonical }, { email: emailCanonical }],
+      })
+      .select('+password')
+      .exec();
   }
 
   async findByProvider(provider: string, providerId: string): Promise<IUser | null> {

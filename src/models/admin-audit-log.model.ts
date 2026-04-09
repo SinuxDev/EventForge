@@ -6,6 +6,7 @@ export type AdminAuditAction =
   | 'compliance.case.created'
   | 'compliance.case.status.updated'
   | 'admin.email.campaign.sent'
+  | 'admin.settings.updated'
   | 'demo.request.assigned'
   | 'demo.request.status.updated'
   | 'demo.request.followup.updated'
@@ -41,6 +42,7 @@ const adminAuditLogSchema = new Schema<IAdminAuditLog>(
         'compliance.case.created',
         'compliance.case.status.updated',
         'admin.email.campaign.sent',
+        'admin.settings.updated',
         'demo.request.assigned',
         'demo.request.status.updated',
         'demo.request.followup.updated',
