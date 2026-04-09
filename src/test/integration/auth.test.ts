@@ -5,6 +5,31 @@ import { User } from '../../models/user.model';
 import './setup';
 
 describe('Auth API integration', () => {
+  describe('POST /api/v1/auth/register', () => {
+    it('preserves user-entered email format while trimming spaces', async () => {
+      const response = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Email Preserve User',
+          email: '  Aung.Yee+events@gmail.com  ',
+          password: 'Password1',
+        })
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.user).toMatchObject({
+        email: 'Aung.Yee+events@gmail.com',
+      });
+
+      const savedUser = await User.findOne({ email: 'Aung.Yee+events@gmail.com' })
+        .select('+emailCanonical')
+        .lean();
+
+      expect(savedUser).toBeTruthy();
+      expect(savedUser?.emailCanonical).toBe('aung.yee+events@gmail.com');
+    });
+  });
+
   describe('POST /api/v1/auth/login', () => {
     it('returns 400 when payload is invalid', async () => {
       const response = await request(app)
@@ -56,6 +81,25 @@ describe('Auth API integration', () => {
       expect(response.body.data.user).toMatchObject({
         email: 'valid@example.com',
         role: 'attendee',
+      });
+    });
+
+    it('authenticates case-insensitively using canonical email', async () => {
+      await User.create({
+        name: 'Case User',
+        email: 'Aung.Yee@gmail.com',
+        password: 'Password1',
+        provider: 'credentials',
+      });
+
+      const response = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'aung.yee@gmail.com', password: 'Password1' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.user).toMatchObject({
+        email: 'Aung.Yee@gmail.com',
       });
     });
   });
