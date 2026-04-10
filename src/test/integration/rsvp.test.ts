@@ -6,6 +6,8 @@ import { Rsvp } from '../../models/rsvp.model';
 import { User } from '../../models/user.model';
 
 describe('RSVP integration (persistent db)', () => {
+  jest.setTimeout(30000);
+
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/sinux-boilerplate';
 
   beforeAll(async () => {
