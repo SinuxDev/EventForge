@@ -43,6 +43,19 @@ class TicketRepository extends BaseRepository<ITicket> {
       .exec();
   }
 
+  async findByShortCodeAndEvent(eventId: string, shortCode: string): Promise<ITicket | null> {
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return null;
+    }
+
+    return this.model
+      .findOne({
+        event: new mongoose.Types.ObjectId(eventId),
+        shortCode: shortCode.trim().toUpperCase(),
+      } as FilterQuery<ITicket>)
+      .exec();
+  }
+
   async findByIdAndEvent(ticketId: string, eventId: string): Promise<ITicket | null> {
     if (!mongoose.Types.ObjectId.isValid(ticketId) || !mongoose.Types.ObjectId.isValid(eventId)) {
       return null;

@@ -50,9 +50,14 @@ interface MyTicketResult {
   eventTimezone: string;
   status: RsvpStatus;
   ticketId: string;
+  shortCode: string;
   qrCode: string;
   qrCodeImage: string | null;
 }
+
+const TICKET_SHORT_CODE_LENGTH = 8;
+const TICKET_SHORT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const MAX_TICKET_CREATE_ATTEMPTS = 5;
 
 interface ListManagedMyRsvpsParams {
   userId: string;
@@ -212,7 +217,8 @@ class RsvpService {
       event,
       status,
       rsvpId: String(rsvp._id),
-      ticketCode: ticket?.qrCode,
+      ticketShortCode: ticket?.shortCode,
+      ticketQrDataUrl: ticket?.qrCodeImage,
     });
 
     return {
@@ -365,6 +371,7 @@ class RsvpService {
       eventTimezone: event.timezone,
       status: rsvp.status,
       ticketId: String(ticket._id),
+      shortCode: ticket.shortCode ?? 'UNAVAILABLE',
       qrCode: ticket.qrCode,
       qrCodeImage: ticket.qrCodeImage ?? null,
     };
@@ -400,7 +407,8 @@ class RsvpService {
         event,
         status: 'registered',
         rsvpId: String(updated._id),
-        ticketCode: updatedTicket.qrCode,
+        ticketShortCode: updatedTicket.shortCode,
+        ticketQrDataUrl: updatedTicket.qrCodeImage,
       });
     }
 
@@ -410,36 +418,94 @@ class RsvpService {
   private async ensureTicket(rsvpId: string, eventId: string, userId: string): Promise<ITicket> {
     const existing = await ticketRepository.findByRsvpId(rsvpId);
     if (existing) {
-      return existing;
+      return this.ensureTicketShortCode(existing);
     }
 
     const qrCode = `evt_${eventId}:rsvp_${rsvpId}:${crypto.randomUUID()}`;
     const qrCodeImage = await generateQrCodeDataUrl(qrCode);
-    try {
-      return await ticketRepository.create({
-        rsvp: new mongoose.Types.ObjectId(rsvpId),
-        event: new mongoose.Types.ObjectId(eventId),
-        user: new mongoose.Types.ObjectId(userId),
-        qrCode,
-        qrCodeImage,
-      } as Partial<ITicket>);
-    } catch (error) {
-      const duplicateError =
-        error instanceof Error &&
-        (error as Error & { name?: string }).name === 'MongoServerError' &&
-        (error as Error & { code?: number }).code === 11000;
+    for (let attempt = 0; attempt < MAX_TICKET_CREATE_ATTEMPTS; attempt += 1) {
+      const shortCode = this.generateTicketShortCode();
 
-      if (!duplicateError) {
-        throw error;
+      try {
+        return await ticketRepository.create({
+          rsvp: new mongoose.Types.ObjectId(rsvpId),
+          event: new mongoose.Types.ObjectId(eventId),
+          user: new mongoose.Types.ObjectId(userId),
+          qrCode,
+          shortCode,
+          qrCodeImage,
+        } as Partial<ITicket>);
+      } catch (error) {
+        const duplicateError =
+          error instanceof Error &&
+          (error as Error & { name?: string }).name === 'MongoServerError' &&
+          (error as Error & { code?: number }).code === 11000;
+
+        if (!duplicateError) {
+          throw error;
+        }
+
+        const raceExisting = await ticketRepository.findByRsvpId(rsvpId);
+        if (raceExisting) {
+          return this.ensureTicketShortCode(raceExisting);
+        }
+
+        if (attempt === MAX_TICKET_CREATE_ATTEMPTS - 1) {
+          throw new AppError('Unable to create ticket', 500);
+        }
       }
-
-      const raceExisting = await ticketRepository.findByRsvpId(rsvpId);
-      if (!raceExisting) {
-        throw new AppError('Unable to create ticket', 500);
-      }
-
-      return raceExisting;
     }
+
+    throw new AppError('Unable to create ticket', 500);
+  }
+
+  private async ensureTicketShortCode(ticket: ITicket): Promise<ITicket> {
+    if (ticket.shortCode) {
+      return ticket;
+    }
+
+    for (let attempt = 0; attempt < MAX_TICKET_CREATE_ATTEMPTS; attempt += 1) {
+      const shortCode = this.generateTicketShortCode();
+
+      try {
+        const updated = await ticketRepository.update(String(ticket._id), {
+          $set: {
+            shortCode,
+          },
+        });
+
+        if (updated?.shortCode) {
+          return updated;
+        }
+      } catch (error) {
+        const duplicateError =
+          error instanceof Error &&
+          (error as Error & { name?: string }).name === 'MongoServerError' &&
+          (error as Error & { code?: number }).code === 11000;
+
+        if (!duplicateError) {
+          throw error;
+        }
+
+        if (attempt === MAX_TICKET_CREATE_ATTEMPTS - 1) {
+          throw new AppError('Unable to assign ticket short code', 500);
+        }
+      }
+    }
+
+    throw new AppError('Unable to assign ticket short code', 500);
+  }
+
+  private generateTicketShortCode(): string {
+    const randomBytes = crypto.randomBytes(TICKET_SHORT_CODE_LENGTH);
+    let value = '';
+
+    for (let index = 0; index < TICKET_SHORT_CODE_LENGTH; index += 1) {
+      const charIndex = randomBytes[index] % TICKET_SHORT_CODE_ALPHABET.length;
+      value += TICKET_SHORT_CODE_ALPHABET[charIndex];
+    }
+
+    return value;
   }
 
   private mapManagedItems(result: ManagedRsvpsAggregationResult, now: Date): ManagedMyRsvpItem[] {
@@ -492,7 +558,8 @@ class RsvpService {
     event: IEvent;
     status: RsvpStatus;
     rsvpId: string;
-    ticketCode?: string;
+    ticketShortCode?: string;
+    ticketQrDataUrl?: string;
   }): Promise<void> {
     try {
       const user = await userRepository.findById(params.userId);
@@ -504,6 +571,7 @@ class RsvpService {
         process.env.EMAIL_WEBSITE_URL || process.env.CORS_ORIGIN || 'http://localhost:3000';
       const eventUrl = `${websiteUrl.replace(/\/$/, '')}/events/${String(params.event._id)}`;
       const ticketUrl = `${websiteUrl.replace(/\/$/, '')}/tickets/${params.rsvpId}`;
+      const qrCid = `ticket-qr-${params.rsvpId}@eventforge.local`;
 
       const template = renderRsvpEmailTemplate({
         attendeeName: user.name,
@@ -511,14 +579,29 @@ class RsvpService {
         eventUrl,
         status: params.status,
         ticketUrl: params.status === 'registered' ? ticketUrl : undefined,
-        ticketCode: params.ticketCode,
+        ticketShortCode: params.ticketShortCode,
+        ticketQrCid: params.status === 'registered' ? qrCid : undefined,
       });
+
+      const attachments =
+        params.status === 'registered' && params.ticketQrDataUrl
+          ? [
+              {
+                filename: 'ticket-qr.png',
+                content: params.ticketQrDataUrl.replace(/^data:image\/png;base64,/, ''),
+                contentType: 'image/png',
+                cid: qrCid,
+                encoding: 'base64',
+              },
+            ]
+          : undefined;
 
       await emailService.sendTextEmail({
         to: user.email,
         subject: template.subject,
         text: template.text,
         html: template.html,
+        attachments,
       });
     } catch (error) {
       logger.warn('[rsvp] transactional email failed', {

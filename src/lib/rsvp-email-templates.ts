@@ -4,7 +4,8 @@ interface RsvpEmailTemplateParams {
   eventUrl: string;
   status: 'registered' | 'waitlisted' | 'cancelled';
   ticketUrl?: string;
-  ticketCode?: string;
+  ticketShortCode?: string;
+  ticketQrCid?: string;
 }
 
 export interface RsvpEmailTemplateResult {
@@ -66,7 +67,7 @@ export function renderRsvpEmailTemplate(params: RsvpEmailTemplateParams): RsvpEm
 
   const ticketLines =
     params.status === 'registered' && params.ticketUrl
-      ? `\nTicket: ${params.ticketUrl}${params.ticketCode ? `\nTicket code: ${params.ticketCode}` : ''}`
+      ? `\nTicket: ${params.ticketUrl}${params.ticketShortCode ? `\nTicket code: ${params.ticketShortCode}` : ''}`
       : '';
 
   const text = `Hi ${greetingName},\n\n${bodyCopy}\n\nEvent: ${params.eventTitle}\nStatus: ${statusLabel}\nEvent page: ${params.eventUrl}${ticketLines}\n\nEventForge`;
@@ -74,8 +75,12 @@ export function renderRsvpEmailTemplate(params: RsvpEmailTemplateParams): RsvpEm
   const ticketHtml =
     params.status === 'registered' && params.ticketUrl
       ? `<p style="margin:0 0 16px;color:#0f172a;font-size:14px;"><strong>Ticket:</strong> <a href="${params.ticketUrl}" style="color:#0f766e;text-decoration:underline;">View your QR ticket</a></p>${
-          params.ticketCode
-            ? `<p style="margin:0 0 16px;color:#0f172a;font-size:14px;"><strong>Ticket code:</strong> ${escapeHtml(params.ticketCode)}</p>`
+          params.ticketShortCode
+            ? `<p style="margin:0 0 16px;color:#0f172a;font-size:14px;"><strong>Ticket code:</strong> ${escapeHtml(params.ticketShortCode)}</p>`
+            : ''
+        }${
+          params.ticketQrCid
+            ? `<div style="margin:0 0 16px;"><img src="cid:${params.ticketQrCid}" alt="Ticket QR code" width="220" height="220" style="display:block;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;padding:8px;" /></div>`
             : ''
         }`
       : '';

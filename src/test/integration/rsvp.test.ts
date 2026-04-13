@@ -173,6 +173,9 @@ describe('RSVP integration (persistent db)', () => {
       status: 'registered',
     });
     expect(firstTicketResponse.body.data.qrCode).toContain(`evt_${String(event._id)}`);
+    expect(firstTicketResponse.body.data.shortCode).toMatch(
+      /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
+    );
 
     const waitlistedTicketAttempt = await request(app)
       .get(`/api/v1/rsvps/${secondRsvpResponse.body.data.rsvpId}/ticket`)

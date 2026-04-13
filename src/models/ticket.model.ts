@@ -5,6 +5,7 @@ export interface ITicket extends Document {
   event: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
   qrCode: string;
+  shortCode?: string;
   qrCodeImage?: string;
   isCheckedIn: boolean;
   checkedInAt?: Date;
@@ -36,6 +37,13 @@ const ticketSchema = new Schema<ITicket>(
       trim: true,
       unique: true,
     },
+    shortCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      minlength: 8,
+      maxlength: 8,
+    },
     qrCodeImage: {
       type: String,
       trim: true,
@@ -64,6 +72,7 @@ const ticketSchema = new Schema<ITicket>(
 );
 
 ticketSchema.index({ rsvp: 1 }, { unique: true });
+ticketSchema.index({ shortCode: 1 }, { unique: true, sparse: true });
 ticketSchema.index({ event: 1, isCheckedIn: 1 });
 ticketSchema.index({ user: 1, event: 1 });
 

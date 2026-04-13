@@ -208,7 +208,12 @@ class EventCheckInService {
       params.actorRole
     );
 
-    const ticket = await ticketRepository.findByQrCodeAndEvent(params.eventId, params.qrCode);
+    const normalizedInput = params.qrCode.trim();
+    const ticketByQr = await ticketRepository.findByQrCodeAndEvent(params.eventId, normalizedInput);
+    const ticket =
+      ticketByQr ||
+      (await ticketRepository.findByShortCodeAndEvent(params.eventId, normalizedInput));
+
     if (!ticket) {
       throw new AppError('Ticket not found for this event', 404);
     }
@@ -342,7 +347,7 @@ class EventCheckInService {
         ticket: item.ticket?._id
           ? {
               id: String(item.ticket._id),
-              code: item.ticket.qrCode,
+              code: item.ticket.shortCode ?? item.ticket.qrCode,
               isCheckedIn: Boolean(item.ticket.isCheckedIn),
               checkedInAt: item.ticket.checkedInAt ?? null,
             }
@@ -467,7 +472,7 @@ class EventCheckInService {
           item.ticket?.isCheckedIn ? 'checked_in' : 'not_checked_in',
           item.ticket?.checkedInAt ? item.ticket.checkedInAt.toISOString() : '',
           item.createdAt.toISOString(),
-          item.ticket?.qrCode ?? '',
+          item.ticket?.shortCode ?? item.ticket?.qrCode ?? '',
         ]);
       });
 

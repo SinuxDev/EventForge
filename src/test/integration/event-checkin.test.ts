@@ -112,6 +112,7 @@ describe('Event check-in integration (persistent db)', () => {
       user: attendeeOne._id,
       rsvp: rsvpOne._id,
       qrCode: `evt_${String(event._id)}:rsvp_${String(rsvpOne._id)}:${suffix}:01`,
+      shortCode: 'ABCD2345',
       isCheckedIn: false,
     });
 
@@ -127,6 +128,7 @@ describe('Event check-in integration (persistent db)', () => {
       user: attendeeTwo._id,
       rsvp: rsvpTwo._id,
       qrCode: `evt_${String(event._id)}:rsvp_${String(rsvpTwo._id)}:${suffix}:02`,
+      shortCode: 'EFGH6789',
       isCheckedIn: false,
     });
 
@@ -169,6 +171,20 @@ describe('Event check-in integration (persistent db)', () => {
       .send({ qrCode: ticketTwo.qrCode, source: 'scanner' })
       .expect(422);
 
+    const shortCodeScannerResponse = await request(app)
+      .post(`/api/v1/events/${String(event._id)}/check-in`)
+      .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', `checkin-short-code-${suffix}`)
+      .send({ qrCode: ticketTwo.shortCode, source: 'manual' })
+      .expect(200);
+
+    expect(shortCodeScannerResponse.body.success).toBe(true);
+    expect(shortCodeScannerResponse.body.data).toMatchObject({
+      attendeeEmail: attendeeTwoEmail,
+      alreadyCheckedIn: false,
+      source: 'manual',
+    });
+
     const duplicateScannerResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/check-in`)
       .set('Authorization', `Bearer ${organizerToken}`)
@@ -192,7 +208,7 @@ describe('Event check-in integration (persistent db)', () => {
     expect(lookupResponse.body.success).toBe(true);
     expect(lookupResponse.body.data).toMatchObject({
       attendeeEmail: attendeeTwoEmail,
-      alreadyCheckedIn: false,
+      alreadyCheckedIn: true,
       source: 'lookup',
     });
 

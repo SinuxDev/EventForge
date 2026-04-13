@@ -7,6 +7,13 @@ interface SendEmailInput {
   subject: string;
   text: string;
   html?: string;
+  attachments?: Array<{
+    filename?: string;
+    content: Buffer | string;
+    contentType?: string;
+    cid?: string;
+    encoding?: string;
+  }>;
 }
 
 class EmailService {
@@ -171,6 +178,7 @@ class EmailService {
         subject: input.subject,
         text: input.text,
         html: input.html,
+        attachments: input.attachments,
       });
 
       return {
@@ -195,6 +203,7 @@ class EmailService {
             subject: input.subject,
             text: input.text,
             html: input.html,
+            attachments: input.attachments,
           });
 
           logger.info('Fallback SMTP send succeeded', {

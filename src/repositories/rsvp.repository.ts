@@ -75,6 +75,7 @@ export interface EventAttendeeAggregationItem {
   ticket?: {
     _id: mongoose.Types.ObjectId;
     qrCode: string;
+    shortCode?: string;
     isCheckedIn: boolean;
     checkedInAt?: Date;
   };
@@ -485,6 +486,7 @@ class RsvpRepository extends BaseRepository<IRsvp> {
           ticket: {
             _id: '$ticket._id',
             qrCode: '$ticket.qrCode',
+            shortCode: '$ticket.shortCode',
             isCheckedIn: '$ticket.isCheckedIn',
             checkedInAt: '$ticket.checkedInAt',
           },
@@ -612,6 +614,7 @@ class RsvpRepository extends BaseRepository<IRsvp> {
           ticket: {
             _id: '$ticket._id',
             qrCode: '$ticket.qrCode',
+            shortCode: '$ticket.shortCode',
             isCheckedIn: '$ticket.isCheckedIn',
             checkedInAt: '$ticket.checkedInAt',
           },
