@@ -6,6 +6,19 @@ import { Rsvp } from '../../models/rsvp.model';
 import { Ticket } from '../../models/ticket.model';
 import { User } from '../../models/user.model';
 
+const SHORT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateShortCode(): string {
+  let value = '';
+
+  for (let index = 0; index < 8; index += 1) {
+    const charIndex = Math.floor(Math.random() * SHORT_CODE_ALPHABET.length);
+    value += SHORT_CODE_ALPHABET[charIndex];
+  }
+
+  return value;
+}
+
 describe('Event check-in integration (persistent db)', () => {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/sinux-boilerplate';
 
@@ -73,6 +86,12 @@ describe('Event check-in integration (persistent db)', () => {
     const organizerEmail = `organizer.checkin.${suffix}@example.com`;
     const attendeeOneEmail = `attendee.one.${suffix}@example.com`;
     const attendeeTwoEmail = `attendee.two.${suffix}@example.com`;
+    const shortCodeOne = generateShortCode();
+    let shortCodeTwo = generateShortCode();
+
+    while (shortCodeTwo === shortCodeOne) {
+      shortCodeTwo = generateShortCode();
+    }
 
     const organizer = await User.create({
       name: 'Organizer CheckIn',
@@ -112,7 +131,7 @@ describe('Event check-in integration (persistent db)', () => {
       user: attendeeOne._id,
       rsvp: rsvpOne._id,
       qrCode: `evt_${String(event._id)}:rsvp_${String(rsvpOne._id)}:${suffix}:01`,
-      shortCode: 'ABCD2345',
+      shortCode: shortCodeOne,
       isCheckedIn: false,
     });
 
@@ -128,7 +147,7 @@ describe('Event check-in integration (persistent db)', () => {
       user: attendeeTwo._id,
       rsvp: rsvpTwo._id,
       qrCode: `evt_${String(event._id)}:rsvp_${String(rsvpTwo._id)}:${suffix}:02`,
-      shortCode: 'EFGH6789',
+      shortCode: shortCodeTwo,
       isCheckedIn: false,
     });
 
