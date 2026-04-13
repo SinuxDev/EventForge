@@ -6,6 +6,7 @@ import { validateRequest } from '../middlewares/validateRequest';
 import { eventValidation } from '../validations/event.validation';
 import { rsvpValidation } from '../validations/rsvp.validation';
 import { rsvpController } from '../controllers/rsvp.controller';
+import { requireIdempotency } from '../middlewares/idempotency.middleware';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.post(
   authenticate,
   requireRole('attendee', 'organizer', 'admin'),
   validateRequest(rsvpValidation.submitRsvp),
+  requireIdempotency({ operation: 'events.submit-rsvp' }),
   rsvpController.submitRsvp
 );
 
@@ -43,16 +45,19 @@ router.get('/:id', validateRequest(eventValidation.getMyEvent), eventController.
 router.post(
   '/:id/check-in',
   validateRequest(eventValidation.checkInByQr),
+  requireIdempotency({ operation: 'events.check-in-qr' }),
   eventController.checkInByQr
 );
 router.post(
   '/:id/check-in/ticket',
   validateRequest(eventValidation.checkInByTicket),
+  requireIdempotency({ operation: 'events.check-in-ticket' }),
   eventController.checkInByTicket
 );
 router.post(
   '/:id/check-in/undo',
   validateRequest(eventValidation.undoCheckIn),
+  requireIdempotency({ operation: 'events.undo-check-in' }),
   eventController.undoCheckIn
 );
 router.get(

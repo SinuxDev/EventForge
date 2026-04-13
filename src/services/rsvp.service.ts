@@ -415,13 +415,31 @@ class RsvpService {
 
     const qrCode = `evt_${eventId}:rsvp_${rsvpId}:${crypto.randomUUID()}`;
     const qrCodeImage = await generateQrCodeDataUrl(qrCode);
-    return ticketRepository.create({
-      rsvp: new mongoose.Types.ObjectId(rsvpId),
-      event: new mongoose.Types.ObjectId(eventId),
-      user: new mongoose.Types.ObjectId(userId),
-      qrCode,
-      qrCodeImage,
-    } as Partial<ITicket>);
+    try {
+      return await ticketRepository.create({
+        rsvp: new mongoose.Types.ObjectId(rsvpId),
+        event: new mongoose.Types.ObjectId(eventId),
+        user: new mongoose.Types.ObjectId(userId),
+        qrCode,
+        qrCodeImage,
+      } as Partial<ITicket>);
+    } catch (error) {
+      const duplicateError =
+        error instanceof Error &&
+        (error as Error & { name?: string }).name === 'MongoServerError' &&
+        (error as Error & { code?: number }).code === 11000;
+
+      if (!duplicateError) {
+        throw error;
+      }
+
+      const raceExisting = await ticketRepository.findByRsvpId(rsvpId);
+      if (!raceExisting) {
+        throw new AppError('Unable to create ticket', 500);
+      }
+
+      return raceExisting;
+    }
   }
 
   private mapManagedItems(result: ManagedRsvpsAggregationResult, now: Date): ManagedMyRsvpItem[] {

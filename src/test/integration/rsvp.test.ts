@@ -67,6 +67,8 @@ describe('RSVP integration (persistent db)', () => {
 
   it('handles register, waitlist, ticket fetch, and promotion after cancellation', async () => {
     const suffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const firstRsvpKey = `rsvp-${suffix}-attendee1`;
+    const secondRsvpKey = `rsvp-${suffix}-attendee2`;
     const organizerEmail = `organizer.rsvp.${suffix}@example.com`;
     const attendeeOneEmail = `attendee.one.rsvp.${suffix}@example.com`;
     const attendeeTwoEmail = `attendee.two.rsvp.${suffix}@example.com`;
@@ -100,9 +102,18 @@ describe('RSVP integration (persistent db)', () => {
     const attendeeOneToken = await loginAndGetToken(attendeeOneEmail, 'Password1');
     const attendeeTwoToken = await loginAndGetToken(attendeeTwoEmail, 'Password1');
 
+    await request(app)
+      .post(`/api/v1/events/${String(event._id)}/rsvp`)
+      .set('Authorization', `Bearer ${attendeeOneToken}`)
+      .send({
+        formResponses: [{ question: 'Dietary', answer: 'Vegetarian' }],
+      })
+      .expect(400);
+
     const firstRsvpResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/rsvp`)
       .set('Authorization', `Bearer ${attendeeOneToken}`)
+      .set('Idempotency-Key', firstRsvpKey)
       .send({
         formResponses: [{ question: 'Dietary', answer: 'Vegetarian' }],
       })
@@ -114,9 +125,31 @@ describe('RSVP integration (persistent db)', () => {
     });
     expect(firstRsvpResponse.body.data.ticketId).toBeTruthy();
 
+    const replayFirstRsvpResponse = await request(app)
+      .post(`/api/v1/events/${String(event._id)}/rsvp`)
+      .set('Authorization', `Bearer ${attendeeOneToken}`)
+      .set('Idempotency-Key', firstRsvpKey)
+      .send({
+        formResponses: [{ question: 'Dietary', answer: 'Vegetarian' }],
+      })
+      .expect(201);
+
+    expect(replayFirstRsvpResponse.headers['idempotency-replayed']).toBe('true');
+    expect(replayFirstRsvpResponse.body).toEqual(firstRsvpResponse.body);
+
+    await request(app)
+      .post(`/api/v1/events/${String(event._id)}/rsvp`)
+      .set('Authorization', `Bearer ${attendeeOneToken}`)
+      .set('Idempotency-Key', firstRsvpKey)
+      .send({
+        formResponses: [{ question: 'Dietary', answer: 'No peanuts' }],
+      })
+      .expect(422);
+
     const secondRsvpResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/rsvp`)
       .set('Authorization', `Bearer ${attendeeTwoToken}`)
+      .set('Idempotency-Key', secondRsvpKey)
       .send({
         formResponses: [{ question: 'Accessibility', answer: 'No requirements' }],
       })

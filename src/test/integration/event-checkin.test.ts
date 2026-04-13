@@ -66,6 +66,10 @@ describe('Event check-in integration (persistent db)', () => {
 
   it('supports scanner and ticket lookup check-in flows', async () => {
     const suffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const firstScannerKey = `checkin-scanner-${suffix}-1`;
+    const secondScannerKey = `checkin-scanner-${suffix}-2`;
+    const lookupKey = `checkin-lookup-${suffix}`;
+    const undoKey = `checkin-undo-${suffix}`;
     const organizerEmail = `organizer.checkin.${suffix}@example.com`;
     const attendeeOneEmail = `attendee.one.${suffix}@example.com`;
     const attendeeTwoEmail = `attendee.two.${suffix}@example.com`;
@@ -128,9 +132,16 @@ describe('Event check-in integration (persistent db)', () => {
 
     const organizerToken = await loginAndGetToken(organizerEmail, 'Password1');
 
+    await request(app)
+      .post(`/api/v1/events/${String(event._id)}/check-in`)
+      .set('Authorization', `Bearer ${organizerToken}`)
+      .send({ qrCode: ticketOne.qrCode, source: 'scanner' })
+      .expect(400);
+
     const scannerResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/check-in`)
       .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', firstScannerKey)
       .send({ qrCode: ticketOne.qrCode, source: 'scanner' })
       .expect(200);
 
@@ -141,9 +152,27 @@ describe('Event check-in integration (persistent db)', () => {
       source: 'scanner',
     });
 
+    const replayScannerResponse = await request(app)
+      .post(`/api/v1/events/${String(event._id)}/check-in`)
+      .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', firstScannerKey)
+      .send({ qrCode: ticketOne.qrCode, source: 'scanner' })
+      .expect(200);
+
+    expect(replayScannerResponse.headers['idempotency-replayed']).toBe('true');
+    expect(replayScannerResponse.body).toEqual(scannerResponse.body);
+
+    await request(app)
+      .post(`/api/v1/events/${String(event._id)}/check-in`)
+      .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', firstScannerKey)
+      .send({ qrCode: ticketTwo.qrCode, source: 'scanner' })
+      .expect(422);
+
     const duplicateScannerResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/check-in`)
       .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', secondScannerKey)
       .send({ qrCode: ticketOne.qrCode, source: 'scanner' })
       .expect(200);
 
@@ -156,6 +185,7 @@ describe('Event check-in integration (persistent db)', () => {
     const lookupResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/check-in/ticket`)
       .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', lookupKey)
       .send({ ticketId: String(ticketTwo._id), source: 'lookup' })
       .expect(200);
 
@@ -169,6 +199,7 @@ describe('Event check-in integration (persistent db)', () => {
     const undoResponse = await request(app)
       .post(`/api/v1/events/${String(event._id)}/check-in/undo`)
       .set('Authorization', `Bearer ${organizerToken}`)
+      .set('Idempotency-Key', undoKey)
       .send({ ticketId: String(ticketTwo._id) })
       .expect(200);
 
