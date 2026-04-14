@@ -7,9 +7,11 @@ type ChartRange = '7d' | '30d' | '90d';
 function getRangeStart(range: ChartRange): Date {
   const now = new Date();
   const dayCount = range === '7d' ? 7 : range === '90d' ? 90 : 30;
-  const start = new Date(now);
-  start.setDate(now.getDate() - (dayCount - 1));
-  start.setHours(0, 0, 0, 0);
+
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (dayCount - 1), 0, 0, 0, 0)
+  );
+
   return start;
 }
 
@@ -19,7 +21,7 @@ function buildDateLabels(from: Date, to: Date): string[] {
 
   while (cursor <= to) {
     labels.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   return labels;
@@ -28,8 +30,10 @@ function buildDateLabels(from: Date, to: Date): string[] {
 class AdminOverviewService {
   async getCharts(range: ChartRange) {
     const from = getRangeStart(range);
-    const to = new Date();
-    to.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const to = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)
+    );
 
     const [roleDistribution, complianceSeverity, emailRows] = await Promise.all([
       userRepository.getRoleDistribution(),
