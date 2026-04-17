@@ -28,6 +28,10 @@ export const authValidation = {
     body('role').optional().isIn(['attendee', 'organizer']).withMessage('Role is invalid'),
   ],
 
+  refresh: [body('refreshToken').notEmpty().withMessage('refreshToken is required').isString()],
+
+  logout: [body('refreshToken').notEmpty().withMessage('refreshToken is required').isString()],
+
   upgradeRole: [
     body('role')
       .notEmpty()

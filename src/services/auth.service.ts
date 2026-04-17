@@ -1,7 +1,9 @@
+import crypto from 'crypto';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { AppError } from '../utils/AppError';
 import { AuthProvider, IUser, UserRole } from '../models/user.model';
 import { userRepository } from '../repositories/user.repository';
+import { refreshTokenRepository } from '../repositories/refresh-token.repository';
 
 interface AuthTokens {
   accessToken: string;
@@ -40,6 +42,10 @@ interface UpgradeRolePayload {
   role: Extract<UserRole, 'organizer'>;
 }
 
+interface RefreshAccessTokenPayload {
+  refreshToken: string;
+}
+
 class AuthService {
   async registerWithCredentials(payload: RegisterPayload): Promise<AuthResponseData> {
     const existingUser = await userRepository.findByEmail(payload.email);
@@ -56,7 +62,7 @@ class AuthService {
       provider: 'credentials',
     } as Partial<IUser>);
 
-    const tokens = this.generateTokens(createdUser);
+    const tokens = await this.generateTokens(createdUser);
 
     return {
       user: createdUser,
@@ -81,7 +87,7 @@ class AuthService {
       throw new AppError('Account is suspended', 403);
     }
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
 
     return {
       user,
@@ -100,7 +106,7 @@ class AuthService {
         throw new AppError('Account is suspended', 403);
       }
 
-      const tokens = this.generateTokens(existingByProvider);
+      const tokens = await this.generateTokens(existingByProvider);
       return {
         user: existingByProvider,
         ...tokens,
@@ -120,7 +126,7 @@ class AuthService {
       existingByEmail.avatar = payload.avatar || existingByEmail.avatar;
       await existingByEmail.save();
 
-      const tokens = this.generateTokens(existingByEmail);
+      const tokens = await this.generateTokens(existingByEmail);
 
       return {
         user: existingByEmail,
@@ -137,7 +143,7 @@ class AuthService {
       avatar: payload.avatar,
     } as Partial<IUser>);
 
-    const tokens = this.generateTokens(createdUser);
+    const tokens = await this.generateTokens(createdUser);
 
     return {
       user: createdUser,
@@ -161,7 +167,7 @@ class AuthService {
       await user.save();
     }
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
 
     return {
       user,
@@ -205,7 +211,81 @@ class AuthService {
     }
   }
 
-  private generateTokens(user: IUser): AuthTokens {
+  async refreshAccessToken(payload: RefreshAccessTokenPayload): Promise<AuthResponseData> {
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!refreshSecret) {
+      throw new AppError('JWT refresh secret is not configured', 500);
+    }
+
+    let decoded: { sub?: string; familyId?: string };
+    try {
+      decoded = jwt.verify(payload.refreshToken, refreshSecret) as {
+        sub?: string;
+        familyId?: string;
+      };
+    } catch {
+      throw new AppError('Invalid or expired refresh token', 401);
+    }
+
+    if (!decoded.sub || !decoded.familyId) {
+      throw new AppError('Invalid refresh token payload', 401);
+    }
+
+    const incomingHash = this.hashToken(payload.refreshToken);
+    const anyStoredToken = await refreshTokenRepository.findByHash(incomingHash);
+    if (!anyStoredToken) {
+      throw new AppError('Invalid or expired refresh token', 401);
+    }
+
+    const storedToken = await refreshTokenRepository.findActiveByHash(incomingHash);
+    if (!storedToken) {
+      await refreshTokenRepository.revokeFamily(anyStoredToken.familyId);
+      throw new AppError('Refresh token reuse detected', 401);
+    }
+
+    if (String(storedToken.userId) !== decoded.sub || storedToken.familyId !== decoded.familyId) {
+      await refreshTokenRepository.revokeFamily(storedToken.familyId);
+      throw new AppError('Refresh token reuse detected', 401);
+    }
+
+    const user = await userRepository.findById(decoded.sub);
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (user.isSuspended) {
+      throw new AppError('Account is suspended', 403);
+    }
+
+    const tokens = await this.generateTokens(user, {
+      previousRefreshTokenHash: incomingHash,
+      familyId: storedToken.familyId,
+    });
+
+    await refreshTokenRepository.markUsed(incomingHash);
+
+    return {
+      user,
+      ...tokens,
+    };
+  }
+
+  async logout(payload: RefreshAccessTokenPayload): Promise<void> {
+    const incomingHash = this.hashToken(payload.refreshToken);
+    await refreshTokenRepository.revokeByHash(incomingHash);
+  }
+
+  async logoutAll(userId: string): Promise<void> {
+    await refreshTokenRepository.revokeAllByUserId(userId);
+  }
+
+  private async generateTokens(
+    user: IUser,
+    options: {
+      previousRefreshTokenHash?: string;
+      familyId?: string;
+    } = {}
+  ): Promise<AuthTokens> {
     const jwtSecret = process.env.JWT_SECRET;
     const refreshSecret = process.env.JWT_REFRESH_SECRET;
 
@@ -225,15 +305,44 @@ class AuthService {
       }
     );
 
-    const refreshToken = jwt.sign({}, refreshSecret, {
+    const familyId = options.familyId || crypto.randomUUID();
+
+    const refreshToken = jwt.sign({ familyId, jti: crypto.randomUUID() }, refreshSecret, {
       subject: String(user._id),
       expiresIn: (process.env.JWT_REFRESH_EXPIRE || '30d') as SignOptions['expiresIn'],
     });
+
+    const refreshTokenHash = this.hashToken(refreshToken);
+    const refreshExpiresAt = this.decodeTokenExpiry(refreshToken, refreshSecret);
+
+    await refreshTokenRepository.createToken({
+      userId: String(user._id),
+      tokenHash: refreshTokenHash,
+      familyId,
+      expiresAt: refreshExpiresAt,
+    });
+
+    if (options.previousRefreshTokenHash) {
+      await refreshTokenRepository.revokeByHash(options.previousRefreshTokenHash, refreshTokenHash);
+    }
 
     return {
       accessToken,
       refreshToken,
     };
+  }
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private decodeTokenExpiry(token: string, secret: string): Date {
+    const decoded = jwt.verify(token, secret) as { exp?: number };
+    if (!decoded.exp) {
+      throw new AppError('Refresh token is missing expiry', 500);
+    }
+
+    return new Date(decoded.exp * 1000);
   }
 }
 

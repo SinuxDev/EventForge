@@ -9,7 +9,10 @@ const router = Router();
 router.post('/register', validateRequest(authValidation.register), authController.register);
 router.post('/login', validateRequest(authValidation.login), authController.login);
 router.post('/social', validateRequest(authValidation.socialLogin), authController.socialLogin);
+router.post('/refresh', validateRequest(authValidation.refresh), authController.refresh);
+router.post('/logout', validateRequest(authValidation.logout), authController.logout);
 router.get('/me', authenticate, authController.me);
+router.post('/logout-all', authenticate, authController.logoutAll);
 router.post(
   '/upgrade-role',
   authenticate,

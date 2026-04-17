@@ -104,6 +104,102 @@ describe('Auth API integration', () => {
     });
   });
 
+  describe('POST /api/v1/auth/refresh', () => {
+    it('refreshes tokens and invalidates previous refresh token', async () => {
+      await User.create({
+        name: 'Refresh User',
+        email: 'refresh@example.com',
+        password: 'Password1',
+        provider: 'credentials',
+      });
+
+      const loginResponse = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'refresh@example.com', password: 'Password1' })
+        .expect(200);
+
+      const oldRefreshToken = loginResponse.body.data.refreshToken as string;
+
+      const refreshResponse = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: oldRefreshToken })
+        .expect(200);
+
+      expect(refreshResponse.body.success).toBe(true);
+      expect(refreshResponse.body.data).toHaveProperty('accessToken');
+      expect(refreshResponse.body.data).toHaveProperty('refreshToken');
+      expect(refreshResponse.body.data.refreshToken).not.toBe(oldRefreshToken);
+
+      await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: oldRefreshToken })
+        .expect(401);
+    });
+  });
+
+  describe('POST /api/v1/auth/logout', () => {
+    it('revokes refresh token and prevents further refresh', async () => {
+      await User.create({
+        name: 'Logout User',
+        email: 'logout@example.com',
+        password: 'Password1',
+        provider: 'credentials',
+      });
+
+      const loginResponse = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'logout@example.com', password: 'Password1' })
+        .expect(200);
+
+      const refreshToken = loginResponse.body.data.refreshToken as string;
+
+      await request(app).post('/api/v1/auth/logout').send({ refreshToken }).expect(200);
+
+      await request(app).post('/api/v1/auth/refresh').send({ refreshToken }).expect(401);
+    });
+  });
+
+  describe('POST /api/v1/auth/logout-all', () => {
+    it('revokes all active refresh tokens for the authenticated user', async () => {
+      await User.create({
+        name: 'Logout All User',
+        email: 'logout-all@example.com',
+        password: 'Password1',
+        provider: 'credentials',
+      });
+
+      const firstLogin = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'logout-all@example.com', password: 'Password1' })
+        .expect(200);
+
+      const secondLogin = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'logout-all@example.com', password: 'Password1' })
+        .expect(200);
+
+      const accessToken = firstLogin.body.data.accessToken as string;
+      const refreshTokenOne = firstLogin.body.data.refreshToken as string;
+      const refreshTokenTwo = secondLogin.body.data.refreshToken as string;
+
+      await request(app)
+        .post('/api/v1/auth/logout-all')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send()
+        .expect(200);
+
+      await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: refreshTokenOne })
+        .expect(401);
+
+      await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: refreshTokenTwo })
+        .expect(401);
+    });
+  });
+
   describe('GET /api/v1/auth/me', () => {
     it('returns 401 when bearer token is missing', async () => {
       const response = await request(app).get('/api/v1/auth/me').expect(401);

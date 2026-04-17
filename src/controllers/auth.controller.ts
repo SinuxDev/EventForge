@@ -20,6 +20,31 @@ class AuthController {
     ApiResponse.success(res, result, 'Social login successful');
   });
 
+  refresh = asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.refreshAccessToken({
+      refreshToken: req.body.refreshToken,
+    });
+
+    ApiResponse.success(res, result, 'Token refreshed successfully');
+  });
+
+  logout = asyncHandler(async (req: Request, res: Response) => {
+    await authService.logout({
+      refreshToken: req.body.refreshToken,
+    });
+
+    ApiResponse.success(res, null, 'Logged out successfully');
+  });
+
+  logoutAll = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    await authService.logoutAll(String(req.user._id));
+    ApiResponse.success(res, null, 'Logged out from all sessions successfully');
+  });
+
   me = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new AppError('Unauthorized', 401);
