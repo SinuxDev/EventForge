@@ -1,4 +1,4 @@
-import fs from 'fs';
+import { promises as fs } from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import {
@@ -62,6 +62,10 @@ class FileService {
       }
       logger.info(`File deleted successfully: ${fileUrl}`);
     } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       logger.error('Error deleting file:', error);
       throw new AppError('Failed to delete file', 500);
     }
@@ -81,8 +85,14 @@ class FileService {
   private async deleteFromLocal(fileUrl: string): Promise<void> {
     const filePath = this.resolveSafeLocalPath(fileUrl);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    try {
+      await fs.unlink(filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return;
+      }
+
+      throw error;
     }
   }
 
@@ -150,15 +160,19 @@ class FileService {
     } else {
       const filePath = this.resolveSafeLocalPath(fileUrl);
 
-      if (!fs.existsSync(filePath)) {
-        throw new AppError('File not found', 404);
-      }
+      try {
+        const stats = await fs.stat(filePath);
+        return {
+          ContentLength: stats.size,
+          LastModified: stats.mtime,
+        };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new AppError('File not found', 404);
+        }
 
-      const stats = fs.statSync(filePath);
-      return {
-        ContentLength: stats.size,
-        LastModified: stats.mtime,
-      };
+        throw error;
+      }
     }
   }
 
@@ -176,7 +190,7 @@ class FileService {
       return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/uploads/${filename}`;
     } else {
       const filePath = path.join(uploadConfig.uploadDir, filename);
-      fs.writeFileSync(filePath, buffer);
+      await fs.writeFile(filePath, buffer);
       return this.getFileUrl(filename);
     }
   }
