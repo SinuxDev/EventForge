@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
-let mongoServer: MongoMemoryServer | null = null;
+let mongoServer: MongoMemoryReplSet | null = null;
 let isConnected = false;
 
 export async function connectTestDatabase(): Promise<void> {
@@ -11,9 +11,12 @@ export async function connectTestDatabase(): Promise<void> {
 
   jest.setTimeout(180000);
 
-  mongoServer = await MongoMemoryServer.create({
+  mongoServer = await MongoMemoryReplSet.create({
     binary: {
       version: '7.0.14',
+    },
+    replSet: {
+      count: 1,
     },
   });
 

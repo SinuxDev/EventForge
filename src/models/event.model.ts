@@ -56,6 +56,7 @@ export interface IEvent extends Document {
   tickets: IEventTicket[];
   attendeeQuestions: IEventQuestion[];
   organizerId: mongoose.Types.ObjectId;
+  rsvpVersion: number;
   publishedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -285,6 +286,10 @@ const eventSchema = new Schema<IEvent>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    rsvpVersion: {
+      type: Number,
+      default: 0,
     },
     publishedAt: {
       type: Date,

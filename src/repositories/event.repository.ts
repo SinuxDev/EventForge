@@ -1,4 +1,4 @@
-import mongoose, { FilterQuery } from 'mongoose';
+import mongoose, { FilterQuery, QueryOptions } from 'mongoose';
 import { BaseRepository } from './base.repository';
 import { Event, IEvent } from '../models/event.model';
 
@@ -7,12 +7,17 @@ class EventRepository extends BaseRepository<IEvent> {
     super(Event);
   }
 
-  async findOwnedByUser(eventId: string, organizerId: string): Promise<IEvent | null> {
+  async findOwnedByUser(
+    eventId: string,
+    organizerId: string,
+    options: QueryOptions = {}
+  ): Promise<IEvent | null> {
     return this.model
       .findOne({
         _id: eventId,
         organizerId,
       } as FilterQuery<IEvent>)
+      .setOptions(options)
       .exec();
   }
 
@@ -27,6 +32,7 @@ class EventRepository extends BaseRepository<IEvent> {
     startDateTime: Date;
     endDateTime: Date;
     excludeEventId?: string;
+    options?: QueryOptions;
   }): Promise<IEvent | null> {
     const organizerObjectId = new mongoose.Types.ObjectId(params.organizerId);
 
@@ -43,15 +49,18 @@ class EventRepository extends BaseRepository<IEvent> {
       } as unknown as IEvent['_id'];
     }
 
-    return this.model.findOne(query).exec();
+    return this.model
+      .findOne(query)
+      .setOptions(params.options || {})
+      .exec();
   }
 
-  async findByIdRaw(eventId: string): Promise<IEvent | null> {
+  async findByIdRaw(eventId: string, options: QueryOptions = {}): Promise<IEvent | null> {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return null;
     }
 
-    return this.model.findById(new mongoose.Types.ObjectId(eventId)).exec();
+    return this.model.findById(new mongoose.Types.ObjectId(eventId)).setOptions(options).exec();
   }
 
   async findPublicById(eventId: string): Promise<IEvent | null> {

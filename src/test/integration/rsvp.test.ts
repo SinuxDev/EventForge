@@ -212,4 +212,80 @@ describe('RSVP integration (persistent db)', () => {
     const promotedRsvp = await Rsvp.findById(secondRsvpResponse.body.data.rsvpId).lean();
     expect(promotedRsvp?.status).toBe('registered');
   });
+
+  it('keeps registered attendees within capacity under concurrent requests', async () => {
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const organizerEmail = `organizer.concurrent.${suffix}@example.com`;
+
+    const organizer = await User.create({
+      name: 'Organizer Concurrent',
+      email: organizerEmail,
+      password: 'Password1',
+      role: 'organizer',
+      provider: 'credentials',
+    });
+
+    const capacity = 2;
+    const event = await createPublishedEvent(
+      String(organizer._id),
+      `${suffix}-concurrent`,
+      capacity
+    );
+
+    const attendees = await Promise.all(
+      Array.from({ length: 8 }).map(async (_unused, index) => {
+        const email = `concurrent.attendee.${index}.${suffix}@example.com`;
+        const user = await User.create({
+          name: `Concurrent Attendee ${index}`,
+          email,
+          password: 'Password1',
+          role: 'attendee',
+          provider: 'credentials',
+        });
+
+        const token = await loginAndGetToken(email, 'Password1');
+
+        return {
+          user,
+          token,
+          idempotencyKey: `rsvp-concurrent-${suffix}-${index}`,
+        };
+      })
+    );
+
+    const responses = await Promise.all(
+      attendees.map((attendee) =>
+        request(app)
+          .post(`/api/v1/events/${String(event._id)}/rsvp`)
+          .set('Authorization', `Bearer ${attendee.token}`)
+          .set('Idempotency-Key', attendee.idempotencyKey)
+          .send({
+            formResponses: [{ question: 'Arrival', answer: 'On time' }],
+          })
+      )
+    );
+
+    responses.forEach((response) => {
+      expect([201, 409]).toContain(response.status);
+    });
+
+    const successfulResponses = responses.filter((response) => response.status === 201);
+    expect(successfulResponses.length).toBeGreaterThanOrEqual(capacity);
+
+    const eventRsvps = await Rsvp.find({ event: event._id }).lean();
+    const registered = eventRsvps.filter((rsvp) => rsvp.status === 'registered');
+    const waitlisted = eventRsvps.filter((rsvp) => rsvp.status === 'waitlisted');
+
+    expect(registered.length).toBeLessThanOrEqual(capacity);
+    expect(registered.length + waitlisted.length).toBe(eventRsvps.length);
+
+    const waitlistPositions = waitlisted
+      .map((rsvp) => rsvp.waitlistPosition)
+      .filter((position): position is number => typeof position === 'number')
+      .sort((left, right) => left - right);
+
+    waitlistPositions.forEach((position, index) => {
+      expect(position).toBe(index + 1);
+    });
+  });
 });

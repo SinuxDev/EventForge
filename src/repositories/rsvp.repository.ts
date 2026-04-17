@@ -1,4 +1,4 @@
-import mongoose, { FilterQuery, PipelineStage } from 'mongoose';
+import mongoose, { FilterQuery, PipelineStage, QueryOptions } from 'mongoose';
 import { BaseRepository } from './base.repository';
 import { IRsvp, Rsvp } from '../models/rsvp.model';
 
@@ -98,7 +98,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
     super(Rsvp);
   }
 
-  async findByEventAndUser(eventId: string, userId: string): Promise<IRsvp | null> {
+  async findByEventAndUser(
+    eventId: string,
+    userId: string,
+    options: QueryOptions = {}
+  ): Promise<IRsvp | null> {
     if (!mongoose.Types.ObjectId.isValid(eventId) || !mongoose.Types.ObjectId.isValid(userId)) {
       return null;
     }
@@ -108,10 +112,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         event: new mongoose.Types.ObjectId(eventId),
         user: new mongoose.Types.ObjectId(userId),
       } as FilterQuery<IRsvp>)
+      .setOptions(options)
       .exec();
   }
 
-  async countRegisteredByEvent(eventId: string): Promise<number> {
+  async countRegisteredByEvent(eventId: string, options: QueryOptions = {}): Promise<number> {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return 0;
     }
@@ -121,10 +126,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         event: new mongoose.Types.ObjectId(eventId),
         status: 'registered',
       } as FilterQuery<IRsvp>)
+      .setOptions(options)
       .exec();
   }
 
-  async countWaitlistedByEvent(eventId: string): Promise<number> {
+  async countWaitlistedByEvent(eventId: string, options: QueryOptions = {}): Promise<number> {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return 0;
     }
@@ -134,10 +140,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         event: new mongoose.Types.ObjectId(eventId),
         status: 'waitlisted',
       } as FilterQuery<IRsvp>)
+      .setOptions(options)
       .exec();
   }
 
-  async countCancelledByEvent(eventId: string): Promise<number> {
+  async countCancelledByEvent(eventId: string, options: QueryOptions = {}): Promise<number> {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return 0;
     }
@@ -147,6 +154,7 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         event: new mongoose.Types.ObjectId(eventId),
         status: 'cancelled',
       } as FilterQuery<IRsvp>)
+      .setOptions(options)
       .exec();
   }
 
@@ -173,7 +181,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
       .exec();
   }
 
-  async findByIdOwnedByUser(rsvpId: string, userId: string): Promise<IRsvp | null> {
+  async findByIdOwnedByUser(
+    rsvpId: string,
+    userId: string,
+    options: QueryOptions = {}
+  ): Promise<IRsvp | null> {
     if (!mongoose.Types.ObjectId.isValid(rsvpId) || !mongoose.Types.ObjectId.isValid(userId)) {
       return null;
     }
@@ -183,10 +195,11 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         _id: new mongoose.Types.ObjectId(rsvpId),
         user: new mongoose.Types.ObjectId(userId),
       } as FilterQuery<IRsvp>)
+      .setOptions(options)
       .exec();
   }
 
-  async findFirstWaitlisted(eventId: string): Promise<IRsvp | null> {
+  async findFirstWaitlisted(eventId: string, options: QueryOptions = {}): Promise<IRsvp | null> {
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return null;
     }
@@ -197,6 +210,7 @@ class RsvpRepository extends BaseRepository<IRsvp> {
         status: 'waitlisted',
       } as FilterQuery<IRsvp>)
       .sort({ waitlistPosition: 1, createdAt: 1 })
+      .setOptions(options)
       .exec();
   }
 

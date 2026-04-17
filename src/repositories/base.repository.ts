@@ -1,14 +1,14 @@
-import { Model, Document, FilterQuery, UpdateQuery, QueryOptions } from 'mongoose';
+import { Model, Document, FilterQuery, UpdateQuery, QueryOptions, SaveOptions } from 'mongoose';
 
 export interface IBaseRepository<T extends Document> {
   findAll(filter?: FilterQuery<T>, options?: QueryOptions): Promise<T[]>;
   findById(id: string): Promise<T | null>;
   findOne(filter: FilterQuery<T>): Promise<T | null>;
-  create(data: Partial<T>): Promise<T>;
-  update(id: string, data: UpdateQuery<T>): Promise<T | null>;
-  delete(id: string): Promise<T | null>;
-  count(filter?: FilterQuery<T>): Promise<number>;
-  exists(filter: FilterQuery<T>): Promise<boolean>;
+  create(data: Partial<T>, options?: SaveOptions): Promise<T>;
+  update(id: string, data: UpdateQuery<T>, options?: QueryOptions): Promise<T | null>;
+  delete(id: string, options?: QueryOptions): Promise<T | null>;
+  count(filter?: FilterQuery<T>, options?: QueryOptions): Promise<number>;
+  exists(filter: FilterQuery<T>, options?: QueryOptions): Promise<boolean>;
 }
 
 export class BaseRepository<T extends Document> implements IBaseRepository<T> {
@@ -26,25 +26,27 @@ export class BaseRepository<T extends Document> implements IBaseRepository<T> {
     return await this.model.findOne(filter).exec();
   }
 
-  async create(data: Partial<T>): Promise<T> {
+  async create(data: Partial<T>, options: SaveOptions = {}): Promise<T> {
     const document = new this.model(data);
-    return await document.save();
+    return await document.save(options);
   }
 
-  async update(id: string, data: UpdateQuery<T>): Promise<T | null> {
-    return await this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true }).exec();
+  async update(id: string, data: UpdateQuery<T>, options: QueryOptions = {}): Promise<T | null> {
+    return await this.model
+      .findByIdAndUpdate(id, data, { new: true, runValidators: true, ...options })
+      .exec();
   }
 
-  async delete(id: string): Promise<T | null> {
-    return await this.model.findByIdAndDelete(id).exec();
+  async delete(id: string, options: QueryOptions = {}): Promise<T | null> {
+    return await this.model.findByIdAndDelete(id, options).exec();
   }
 
-  async count(filter: FilterQuery<T> = {}): Promise<number> {
-    return await this.model.countDocuments(filter).exec();
+  async count(filter: FilterQuery<T> = {}, options: QueryOptions = {}): Promise<number> {
+    return await this.model.countDocuments(filter).setOptions(options).exec();
   }
 
-  async exists(filter: FilterQuery<T>): Promise<boolean> {
-    const count = await this.model.countDocuments(filter).limit(1).exec();
+  async exists(filter: FilterQuery<T>, options: QueryOptions = {}): Promise<boolean> {
+    const count = await this.model.countDocuments(filter).limit(1).setOptions(options).exec();
     return count > 0;
   }
 
